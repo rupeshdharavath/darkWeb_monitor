@@ -1,0 +1,30 @@
+# DarkWeb Monitor - Required Dependencies
+
+# Web scraping and requests
+requests==2.31.0
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
+# Tor connectivity
+PySocks==1.7.1
+stem==1.8.2
+
+# Database
+pymongo==4.6.1
+dnspython==2.5.0
+
+# Environment variables
+python-dotenv==1.0.1
+
+# Utilities
+urllib3==2.2.0
+certifi==2024.2.2
+charset-normalizer==3.3.2
+soupsieve==2.5
+
+# Malware detection
+pyclamd==0.4.0
+
+# API server
+fastapi==0.115.6
+uvicorn==0.30.6
