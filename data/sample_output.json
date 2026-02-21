@@ -1,0 +1,27 @@
+{
+  "sample_data": [
+    {
+      "url": "http://example.onion",
+      "timestamp": "2026-02-21T12:00:00",
+      "title": "Sample Dark Web Page",
+      "links": [
+        {
+          "url": "http://example.onion/page1",
+          "text": "Link 1"
+        },
+        {
+          "url": "http://example.onion/page2",
+          "text": "Link 2"
+        }
+      ],
+      "keywords": [
+        "sample",
+        "darkweb",
+        "monitoring",
+        "security",
+        "privacy"
+      ],
+      "text_preview": "This is a sample preview of the scraped content..."
+    }
+  ]
+}
