@@ -12,6 +12,13 @@ from app.utils import logger, sanitize_url
 from app.analyzer import analyze_content
 from app.downloader import download_file
 from app.file_analyzer import analyze_file
+from app.logger import (
+    log_url_status,
+    log_threat_detection,
+    log_ioc_reuse,
+    log_content_change,
+    log_malware_detected
+)
 
 
 def main():
@@ -49,10 +56,17 @@ def main():
     # -----------------------------
     # URLs to Scrape
     # -----------------------------
+    # Mix of regular URLs (no Tor) and .onion URLs (Tor required)
     urls_to_scrape = [
-        "https://pastebin.com/tVcZFsGC"
+        # Regular HTTPS URLs (accessed directly, no Tor proxy)
+        "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/",                    # Test HTML page
+        "http://juhanurmihxlp77nkq76byazcldy2hlmovfu2epvl5ankdibsot4csyd.onion/",          # Raw text content
+        
+        # Dark Web .onion URLs (automatically routed through Tor)
+        # Note: Requires Tor service running (sudo service tor start)
+        # "http://thehiddenwikitorfozq.onion/",       # Hidden Wiki
+        # "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/",  # DuckDuckGo onion
     ]
-
     if not urls_to_scrape:
         logger.warning("⚠ No URLs configured for scraping.")
         logger.info("Please add URLs to the urls_to_scrape list in main.py")
@@ -79,13 +93,49 @@ def main():
     logger.info(f"Starting to scrape {len(valid_urls)} URLs...")
     scraped_results = scrape_multiple_urls(session, valid_urls)
 
+    # Status summary for final report
+    status_summary = {"ONLINE": 0, "OFFLINE": 0, "TIMEOUT": 0, "ERROR": 0}
+
     # -----------------------------
     # Parse and Store Results
     # -----------------------------
-    for url, html_content in scraped_results.items():
+    for url, (html_content, status_info) in scraped_results.items():
+        
+        url_status = status_info.get("status", "UNKNOWN")
+        response_time = status_info.get("response_time", None)
+        status_code = status_info.get("status_code", None)
+        
+        # Log URL status with enhanced logger
+        log_url_status(url, url_status, response_time)
+        
+        # Track status summary
+        if url_status in status_summary:
+            status_summary[url_status] += 1
 
         if not html_content:
-            logger.warning(f"⚠ No content retrieved from {url}")
+            logger.warning(f"⚠ No content retrieved from {url} - Status: {url_status}")
+            
+            # Store status info even if no content (for all statuses including ONLINE)
+            db_manager.insert_scraped_data(
+                url,
+                {
+                    "text_content": "",
+                    "text_preview": f"Failed to retrieve content - Status: {url_status}",
+                    "links": [],
+                    "keywords": [],
+                    "title": f"[{url_status}] Unable to fetch content",
+                    "threat_score": 0,
+                    "category": "Unknown",
+                    "risk_level": "LOW",
+                    "confidence": 0,
+                    "emails_found": [],
+                    "crypto_addresses": [],
+                    "content_hash": ""
+                },
+                url_status=url_status,
+                response_time=response_time,
+                status_code=status_code
+            )
             continue
 
         logger.info(f"Parsing content from {url}")
@@ -147,7 +197,13 @@ def main():
             if file_analysis_results:
                 parsed_data["file_analysis"] = file_analysis_results
 
-            success = db_manager.insert_scraped_data(url, parsed_data)
+            success = db_manager.insert_scraped_data(
+                url,
+                parsed_data,
+                url_status=url_status,
+                response_time=response_time,
+                status_code=status_code
+            )
 
             if success:
                 logger.info(f"✅ Successfully processed and stored data from {url}")
@@ -164,6 +220,11 @@ def main():
                 confidence = parsed_data.get("confidence", 0)
                 content_changed = parsed_data.get("content_changed", False)
                 clamav_detected = parsed_data.get("clamav_detected", False)
+                risk_level = parsed_data.get("risk_level", "UNKNOWN")
+                
+                # Log threat detection with enhanced logger
+                if threat_score > 50:
+                    log_threat_detection(url, threat_score, category, risk_level)
                 
                 # Alert Trigger 1: High Threat Score
                 if threat_score > 60:
@@ -176,8 +237,14 @@ def main():
                     alert_triggered = True
                     alert_reason = "🚨 MALWARE DETECTED"
                     alert_details["malware_info"] = parsed_data.get("clamav_details")
+                    log_malware_detected(url, parsed_data.get("clamav_details", {}))
                 
                 # Alert Trigger 3: Content Changed
+                if content_changed:
+                    alert_triggered = True
+                    alert_reason = "Content Change Detected"
+                    alert_details["content_change"] = True
+                    log_content_change(url)
                 if content_changed:
                     alert_triggered = True
                     alert_reason = "Content Change Detected"
@@ -215,7 +282,7 @@ def main():
                     reuse_info = db_manager.insert_ioc(email, "email", url)
                     if reuse_info and reuse_info.get("exists"):
                         ioc_reuse_detected = True
-                        logger.warning(f"🔄 EMAIL REUSE ALERT: {email} found on {reuse_info.get('reuse_count')} URLs")
+                        log_ioc_reuse("email", email, reuse_info.get('reuse_count'))
                         
                         # Alert on IOC reuse
                         db_manager.insert_alert({
@@ -233,7 +300,7 @@ def main():
                     reuse_info = db_manager.insert_ioc(crypto_addr, "crypto", url)
                     if reuse_info and reuse_info.get("exists"):
                         ioc_reuse_detected = True
-                        logger.warning(f"🔄 CRYPTO REUSE ALERT: Address found on {reuse_info.get('reuse_count')} URLs")
+                        log_ioc_reuse("crypto", crypto_addr, reuse_info.get('reuse_count'))
                         
                         # Alert on IOC reuse
                         db_manager.insert_alert({
@@ -251,7 +318,7 @@ def main():
                     reuse_info = db_manager.insert_ioc(file_hash, "file_hash", url)
                     if reuse_info and reuse_info.get("exists"):
                         ioc_reuse_detected = True
-                        logger.warning(f"🔄 FILE HASH REUSE: Same file on {reuse_info.get('reuse_count')} URLs")
+                        log_ioc_reuse("file_hash", file_hash, reuse_info.get('reuse_count'))
                         
                         # Alert on IOC reuse
                         db_manager.insert_alert({
@@ -271,6 +338,16 @@ def main():
                 logger.error(f"❌ Failed to store data for {url}")
         else:
             logger.warning(f"⚠ Parsing failed for {url}")
+
+    # Display URL Status Summary
+    logger.info("=" * 60)
+    logger.info("📊 URL Status Summary")
+    logger.info("=" * 60)
+    logger.info(f"🟢 ONLINE  : {status_summary['ONLINE']}")
+    logger.info(f"🔴 OFFLINE : {status_summary['OFFLINE']}")
+    logger.info(f"🟡 TIMEOUT : {status_summary['TIMEOUT']}")
+    logger.info(f"⚠️  ERROR   : {status_summary['ERROR']}")
+    logger.info("=" * 60)
 
     # -----------------------------
     # Retrieve Recent Entries

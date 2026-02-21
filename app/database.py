@@ -50,8 +50,8 @@ class DatabaseManager:
             logger.error(f"Unexpected error connecting to database: {e}")
             return False
 
-    def insert_scraped_data(self, url, parsed_data):
-        """Insert scraped and parsed data into database with content change detection"""
+    def insert_scraped_data(self, url, parsed_data, url_status=None, response_time=None, status_code=None):
+        """Insert scraped and parsed data into database with content change detection and URL status tracking"""
 
         if self.collection is None:
             logger.error("Database not connected")
@@ -107,6 +107,19 @@ class DatabaseManager:
                                 "threats": analysis.get("clamav", {}).get("threats", [])
                             })
 
+            # Build status history entry
+            status_history_entry = {
+                "timestamp": get_timestamp(),
+                "url_status": url_status or "UNKNOWN",
+                "response_time": response_time,
+                "status_code": status_code
+            }
+            
+            # Initialize or extend status history
+            previous_status_history = []
+            if previous_entry and "status_history" in previous_entry:
+                previous_status_history = previous_entry.get("status_history", [])
+
             # Create document with ALL fields from parsed_data
             document = {
                 "url": url,
@@ -131,6 +144,11 @@ class DatabaseManager:
                 "clamav_status": clamav_status,
                 "clamav_detected": clamav_detected,
                 "clamav_details": clamav_details if clamav_details else None,
+                # URL Status fields
+                "url_status": url_status or "UNKNOWN",
+                "response_time": response_time,
+                "status_code": status_code,
+                "status_history": previous_status_history + [status_history_entry],
             }
 
             # Step 5: Insert updated document

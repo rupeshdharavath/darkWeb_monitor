@@ -3,28 +3,9 @@ Utility Functions
 Helper functions for timestamps, logging, etc.
 """
 
-import logging
 import os
 from datetime import datetime
-from app.config import LOG_FILE, LOG_LEVEL
-
-
-# Ensure logs directory exists
-os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-
-
-# Configure logging only once
-if not logging.getLogger().hasHandlers():
-    logging.basicConfig(
-        level=LOG_LEVEL,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.FileHandler(LOG_FILE),
-            logging.StreamHandler()
-        ]
-    )
-
-logger = logging.getLogger(__name__)
+from app.logger import logger
 
 
 def get_timestamp():

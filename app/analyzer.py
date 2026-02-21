@@ -8,6 +8,7 @@ import re
 import hashlib
 import unicodedata
 from app.utils import logger
+from app.logger import log_threat_detection
 
 # ============================================================================
 # CATEGORY RULES - Define classification logic for threat categories
@@ -305,6 +306,15 @@ def analyze_content(text, keywords=None, clamav_detected=False):
     
     # Determine risk level from threat score
     risk_level = get_risk_level(threat_score)
+    
+    # Log threat detection for high-risk content
+    if threat_score > 50:
+        log_threat_detection(
+            url="[analyzing]",  # URL will be logged by main.py
+            threat_score=threat_score,
+            category=classification["category"],
+            risk_level=risk_level
+        )
 
     return {
         "content_hash": content_hash,
