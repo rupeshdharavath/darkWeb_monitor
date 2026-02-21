@@ -17,6 +17,21 @@ def scrape_url(session, url):
     Scrape content from a given URL using the provided session
     """
 
+    # Special handling for Pastebin to fetch raw content
+    if "pastebin.com/" in url and "/raw/" not in url:
+        paste_id = url.rstrip("/").split("/")[-1]
+        raw_url = f"https://pastebin.com/raw/{paste_id}"
+        try:
+            logger.info(f"Attempting Pastebin raw URL: {raw_url}")
+            raw_response = session.get(raw_url, timeout=REQUEST_TIMEOUT)
+            raw_response.raise_for_status()
+            raw_content_type = raw_response.headers.get("Content-Type", "")
+            if "text/plain" in raw_content_type or raw_response.text:
+                logger.info(f"Successfully scraped raw Pastebin content: {raw_url}")
+                return raw_response.text
+        except Exception as e:
+            logger.warning(f"Pastebin raw fetch failed, falling back to HTML: {e}")
+
     for attempt in range(MAX_RETRIES):
         try:
             logger.info(f"Scraping URL: {url} (Attempt {attempt+1})")
@@ -28,7 +43,7 @@ def scrape_url(session, url):
 
             content_type = response.headers.get("Content-Type", "")
 
-            if "text/html" not in content_type:
+            if "text/html" not in content_type and "text/plain" not in content_type:
                 logger.warning(f"Non-HTML content at {url}")
                 return None
 

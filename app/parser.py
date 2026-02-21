@@ -11,6 +11,45 @@ from app.utils import logger
 
 
 MAX_LINKS = 200
+DOWNLOADABLE_EXTENSIONS = {
+    # Archives
+    ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
+    # Executables
+    ".exe", ".dll", ".so", ".app", ".bin", ".msi",
+    # Documents
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".txt", ".rtf", ".odt",
+    # Images
+    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp",
+    ".tiff", ".ico", ".psd",
+    # Video/Audio
+    ".mp4", ".avi", ".mov", ".mkv", ".flv", ".mp3", ".wav",
+    ".flac", ".aac", ".ogg",
+    # Code
+    ".py", ".js", ".java", ".cpp", ".c", ".go", ".rs",
+    ".sh", ".bat", ".ps1",
+    # Other
+    ".iso", ".img", ".dmg", ".apk", ".deb", ".rpm"
+}
+
+
+def detect_file_links(links, base_url=None):
+    """Detect downloadable files from link list"""
+    file_links = []
+    
+    for link in links:
+        url = link.get("url", "")
+        # Check if URL has downloadable extension
+        for ext in DOWNLOADABLE_EXTENSIONS:
+            if url.lower().endswith(ext):
+                file_links.append({
+                    "url": url,
+                    "text": link.get("text", ""),
+                    "extension": ext
+                })
+                break
+    
+    return file_links
 
 
 def parse_html(html_content, base_url=None):
@@ -44,20 +83,46 @@ def parse_html(html_content, base_url=None):
                 "text": link_text if link_text else None
             })
 
-        # Extract text content
-        text_content = soup.get_text(separator=" ", strip=True)
+        # Extract text content with proper spacing between block elements
+        text_content = soup.get_text("\n")
+        text_content = text_content.replace("\n", " ")
+        text_content = re.sub(r"\s+", " ", text_content).strip()
+
+        # Include text from code-heavy containers (e.g., Pastebin)
+        extra_blocks = []
+        for tag in soup.find_all(["textarea", "pre", "code"]):
+            block_text = tag.get_text("\n", strip=True)
+            if block_text:
+                block_text = re.sub(r"\s+", " ", block_text).strip()
+                extra_blocks.append(block_text)
+        if extra_blocks:
+            text_content = f"{text_content} {' '.join(extra_blocks)}"
+
+        # Include link URLs in text content so indicators in hrefs are detected
+        link_urls = [link["url"] for link in links if link.get("url")]
+        if link_urls:
+            text_content = f"{text_content} {' '.join(link_urls)}"
+
+        text_content = re.sub(r"\s+", " ", text_content).strip()
 
         # Extract keywords
         keywords = extract_keywords(text_content)
 
+        # Extract downloadable file links
+        file_links = detect_file_links(links, base_url)
+
         parsed_data = {
             "title": title_text,
             "links": links,
+            "file_links": file_links,  # NEW: Downloaded file links
             "keywords": keywords,
-            "text_preview": text_content[:500]
+            "text_preview": text_content[:500],
+            "text_content": text_content  # FULL TEXT FOR ANALYZER
         }
 
         logger.info(f"Successfully parsed HTML - Title: {title_text}")
+        if file_links:
+            logger.info(f"Found {len(file_links)} downloadable files")
         return parsed_data
 
     except Exception as e:

@@ -1,0 +1,26 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+Clearnet Mirrors
+- - bitania.io
+- - bitania.to
+
+Onion Mirrors
+- - bitania2bmwnoqtjh5uttirc6hvtl4rn2wuokte4ttjkfsualziwvjqd.onion
+- - bitaniazto32g3fuifykktkvay3tofkrrdgtvpvspdmca5r2lwrxp2id.onion
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCAAdFiEEEoEIWa+UzfRWl1k04fRrLs87Sk4FAmefi8IACgkQ4fRrLs87
+Sk4VVhAA3EyqjRhydp/I3ElEHmKRbE6VIrVLg0IqiFfV0MbBQsKNCnEfXC5WBZXh
+gKyWFhOVqC7aMgBTsOA4lkhzPbia5mf2SQJhNSRdCeiCwbf7zNe0Ww1Vom5S1WzS
+3UHwC/WwqRoFl8LJrQkXnnjxb/B88Whk1n1yllQ/WJGvEnhMaKEuZkoAMzQpDGVS
+L7xTYdWLXbHp7mQKz2qPwiSRaRGV/+XvEV++NlkkHTRCMhdCOS2M0FaPcDRKwIwo
+KQb/sDkVmBltj6PyzKmZnLKTTtydQMjJaWFLDTxWXed2PiGcaagOBnk1ylKu6fPy
+pVPE4Wj2sX8IGFyQ85CbrCUfRN9ZImGTIf7YYfaGgoUJzTxLCwq5JH+GOzrAJz+z
+Ag+u2DKK1/9kOkFyWVmVDS8vLX1aPBhKA1xIlvArsV/LKk/oNA7QINtCeMjjgm40
+mWGazfF63XQ0cpVbbBPgmUg/mHeIJGbTQ8Cdau5T9U63UIwaRKAOTLdNAZON8JFe
+7ep1WfSaoLNr9AmBbMoqH5Oo8OV76CWU8TCaEqAiPSwM1oL8bb1RWTQe7TIW1XpC
+kbOTPq6am2HYz+agltEDPmF2nmyLiK7Mh10LcUMTox7zO6TsAHmogs9sn3XGw6oO
+55/mdU3SCAQb+9I8/qKw5XyP9HcCg7I2M8+rJQ3vu/fSVZZM+U8=
+=pAVr
+-----END PGP SIGNATURE-----

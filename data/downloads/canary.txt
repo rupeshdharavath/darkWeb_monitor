@@ -1,0 +1,53 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+I am Erik, an admin of Bitania.
+I am in control of my PGP key.
+I will update this canary within 14 days of today's date.
+Today is 09.03.25
+
+Latest Bitcoin Block Hash: 000000000000000000025589bb2bceb391f2e181ce11977d471ce78b2cf651e6
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCAAdFiEEEoEIWa+UzfRWl1k04fRrLs87Sk4FAmfNBCUACgkQ4fRrLs87
+Sk6mmA/+OQ8TwWcv56JrKrjoQNExnK1bXoyGA4TDvuJ+G/KF7jN2S/qeKbgpc5O9
++79IRSJ0+VPR+XrEyn1N5DL4X/P2H5hn2sUoKkhlRw9pzG86HNiy/3nLiDPE01kV
+I+GY4cyxnlgAioM70qRdW/dETvSmKUV6em6nUbenwiUTnOAgTZPG0ylsWC3VAXGC
+MsRq4sYJ7P5hGlw66yM5tR1Y3XRFxdLxDfeY4dzEBoZHupgEC9MM/Uzxx94GwWAQ
+pdbBxupbOUG3SOMhyUeoxMgoYMTRA67nzlZ2AMtDuDKXPzPznXkxWHb/9GSXiD0Y
+LsBwZ+JQkpH1osBgIGljQyuQe0uqXN6ewiX/bG4cvPplbgqZPb7zTmz4LBVbCr6u
++ppO6OJ5fXZxNP4XEVDhaEyovOJUC3zgASoJd+I6l822ZV5haI/RudvVqbqPznLK
+vEFke27wwjsU122Eae/CYqfjMY9qaG9oESvznjcUGZ0WOUzqr6FnTNyM5VyInbYr
+ukhzDOHUE+g3ZbPJPvKnlBr6g1FfoKgkY503kB5DPEEzVFF3Tm/wKjXNfN9JjX3T
+YI50HLhwzZPxTXbxD5bs84/ZznHRiVnTuXZkWEU8rw/GAjHNM6rpfTx5PujChGEq
+JbAV3m5UIwJmmWpS5rfTdeqlIwVtv48lmEQAQqZ2bf9SjnZO7Ps=
+=sErF
+-----END PGP SIGNATURE-----
+
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+I am Alek, an admin of Bitania.
+I am in control of my PGP key.
+I will update this canary within 14 days of today's date.
+Today is 09.03.25
+
+Latest Bitcoin Block Hash: 02d86e770f4adf6c3a288bb776edb98ada4e8f65cbc7c98c554b2f6e80198586
+
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEtaFzD4G3WJpDq7Jr+IieqdE/rYoFAmfN5T8ACgkQ+IieqdE/
+rYpMWxAAitlAUpoFeYyCQ4wBlM13pm7g+uSFcQJURr5RKY8s0o3wWUVXbVw38qXl
+PZ79mCgIBuC2X0gadEzjyU9iJGgYrvBlxP0etYbS10FXy10qYrjhHl6u2ddNtxk0
+ucO/awEPYdnL0dCbLIS2hVV4fo5pl4p0bKBjm5R4Bh8RT3tCxFYPtQEVe4XNXUc7
+jzNSGonwJEP+HQ3wtpW/McHz2K1CPXMzm0EGvXCJERRoBmvW32u5+RjRfKHOtjut
+OvDneA81VJbqZuLc+OOzr/VdslEkQ34Fzo5mWpgUQ93tkOup1YADng4InK1o4EUG
+ccGT21Jape45n4vIcYnUPeTmkBG0X3jePo4W2p3qyApWfMog73RVSQqoNuYyR0U5
+n7k/KrF239xWy1meiJiKaw8BGJpxdgwg2p80hEdV7n1to0R1ecTl5ewZeqS/at6m
+armRhBp+2pEr1yVZcYQiCUrJS2beFC7eATjxEc5gH0468wJvpSpMb0RlJDH8chNI
+KzoI9kt/FTUWJq80txqtlHqkSIVMFaQb+r1ospS4ijaNAVaS0kfXpF9RJHorJ5YF
+KUC5frYEJQwvedXsGP5cQm7xppG+oduvE7I7rlE9+2eJEojqM9c6TZEiQkFaJv6I
+wH7zsoGbdu6qzfJliVEXSx0hJSjrOcoQizspOLsAckl+pt0iba4=
+=csnU
+-----END PGP SIGNATURE-----
