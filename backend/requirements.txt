@@ -34,3 +34,4 @@ python-dotenv==1.0.1
 # Malware detection
 pyClamd==0.4.0
 
+tzlocal==5.3.1

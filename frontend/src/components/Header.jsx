@@ -3,11 +3,12 @@ import { Link, useLocation } from "react-router-dom";
 export default function Header() {
   const location = useLocation();
   const isHistory = location.pathname === "/history";
+  const isMonitors = location.pathname === "/monitors";
   const isDashboard = location.pathname === "/" || location.pathname.startsWith("/entry/");
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-gray-950/80 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neon-green/10 border border-neon-green/30">
             <svg className="h-6 w-6 text-neon-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -30,6 +31,16 @@ export default function Header() {
             }`}
           >
             Dashboard
+          </Link>
+          <Link
+            to="/monitors"
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              isMonitors
+                ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
+                : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+            }`}
+          >
+            Monitors
           </Link>
           <Link
             to="/history"

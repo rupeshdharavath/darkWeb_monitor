@@ -15,6 +15,7 @@ from app.database import DatabaseManager
 from app.utils import sanitize_url
 from app.downloader import download_file
 from app.file_analyzer import analyze_file
+from app.monitor import monitor_manager
 
 
 def build_category_distribution(category: str) -> List[Dict[str, Any]]:
@@ -356,6 +357,197 @@ def scan_url() -> Any:
     finally:
         if session:
             session.close()
+        db_manager.close()
+
+
+@app.route("/monitors", methods=["GET"])
+def list_monitors() -> Any:
+    """Get all active monitors"""
+    monitors = monitor_manager.list_monitors()
+    return jsonify({"monitors": monitors})
+
+
+@app.route("/monitors", methods=["POST"])
+def create_monitor() -> Any:
+    """Create a new monitoring job"""
+    payload = request.get_json(silent=True) or {}
+    url = sanitize_url(payload.get("url"))
+    interval = payload.get("interval", 5)  # default 5 minutes
+    
+    if not url:
+        return jsonify({"detail": "Invalid URL"}), 400
+    
+    # Generate monitor ID
+    import hashlib
+    monitor_id = hashlib.md5(url.encode()).hexdigest()[:12]
+    
+    success = monitor_manager.add_monitor(monitor_id, url, interval)
+    
+    if success:
+        return jsonify({
+            "monitor_id": monitor_id,
+            "url": url,
+            "interval": interval,
+            "message": "Monitor created successfully"
+        }), 201
+    else:
+        return jsonify({"detail": "Failed to create monitor"}), 500
+
+
+@app.route("/monitors/<monitor_id>", methods=["GET"])
+def get_monitor(monitor_id: str) -> Any:
+    """Get specific monitor details"""
+    monitor = monitor_manager.get_monitor(monitor_id)
+    if not monitor:
+        return jsonify({"detail": "Monitor not found"}), 404
+    return jsonify(monitor)
+
+
+@app.route("/monitors/<monitor_id>", methods=["DELETE"])
+def delete_monitor(monitor_id: str) -> Any:
+    """Delete a monitor"""
+    success = monitor_manager.remove_monitor(monitor_id)
+    if success:
+        return jsonify({"message": "Monitor deleted successfully"})
+    else:
+        return jsonify({"detail": "Monitor not found"}), 404
+
+
+@app.route("/monitors/<monitor_id>/pause", methods=["POST"])
+def pause_monitor(monitor_id: str) -> Any:
+    """Pause a monitor"""
+    success = monitor_manager.pause_monitor(monitor_id)
+    if success:
+        return jsonify({"message": "Monitor paused"})
+    else:
+        return jsonify({"detail": "Failed to pause monitor"}), 500
+
+
+@app.route("/monitors/<monitor_id>/resume", methods=["POST"])
+def resume_monitor(monitor_id: str) -> Any:
+    """Resume a paused monitor"""
+    success = monitor_manager.resume_monitor(monitor_id)
+    if success:
+        return jsonify({"message": "Monitor resumed"})
+    else:
+        return jsonify({"detail": "Failed to resume monitor"}), 500
+
+
+@app.route("/alerts", methods=["GET"])
+def get_alerts() -> Any:
+    """Get recent alerts"""
+    db_manager = DatabaseManager()
+    if db_manager.alerts is None:
+        return jsonify({"detail": "Database connection failed"}), 500
+    
+    try:
+        # Get recent alerts (last 100)
+        alerts = list(
+            db_manager.alerts
+            .find()
+            .sort("timestamp", -1)
+            .limit(100)
+        )
+        
+        # Convert ObjectId to string
+        for alert in alerts:
+            alert["_id"] = str(alert["_id"])
+        
+        return jsonify({"alerts": alerts})
+    finally:
+        db_manager.close()
+
+
+@app.route("/alerts/<alert_id>/acknowledge", methods=["POST"])
+def acknowledge_alert(alert_id: str) -> Any:
+    """Mark an alert as acknowledged"""
+    from bson import ObjectId
+    from bson.errors import InvalidId
+    
+    db_manager = DatabaseManager()
+    if db_manager.alerts is None:
+        return jsonify({"detail": "Database connection failed"}), 500
+    
+    try:
+        try:
+            obj_id = ObjectId(alert_id)
+        except InvalidId:
+            return jsonify({"detail": "Invalid alert ID"}), 400
+        
+        result = db_manager.alerts.update_one(
+            {"_id": obj_id},
+            {"$set": {"status": "acknowledged"}}
+        )
+        
+        if result.modified_count > 0:
+            return jsonify({"message": "Alert acknowledged"})
+        else:
+            return jsonify({"detail": "Alert not found"}), 404
+    finally:
+        db_manager.close()
+
+
+@app.route("/compare/<url_hash>", methods=["GET"])
+def compare_scans(url_hash: str) -> Any:
+    """Compare last two scans for a URL"""
+    import urllib.parse
+    
+    db_manager = DatabaseManager()
+    if db_manager.collection is None:
+        return jsonify({"detail": "Database connection failed"}), 500
+    
+    try:
+        # URL is passed as hash, need to find by URL
+        # Get limit parameter
+        limit = request.args.get("limit", 2, type=int)
+        
+        # Find scans by URL
+        scans = list(
+            db_manager.collection
+            .find({"url": {"$regex": url_hash}})
+            .sort("timestamp", -1)
+            .limit(limit)
+        )
+        
+        if len(scans) < 2:
+            return jsonify({"detail": "Not enough scans to compare"}), 404
+        
+        current = scans[0]
+        previous = scans[1]
+        
+        comparison = {
+            "current": {
+                "timestamp": current.get("timestamp"),
+                "threat_score": current.get("threat_score", 0),
+                "risk_level": current.get("risk_level", "LOW"),
+                "category": current.get("category", "Unknown"),
+                "url_status": current.get("url_status", "UNKNOWN"),
+                "content_changed": current.get("content_changed", False),
+                "emails": len(current.get("emails_found", [])),
+                "crypto": len(current.get("crypto_addresses", []))
+            },
+            "previous": {
+                "timestamp": previous.get("timestamp"),
+                "threat_score": previous.get("threat_score", 0),
+                "risk_level": previous.get("risk_level", "LOW"),
+                "category": previous.get("category", "Unknown"),
+                "url_status": previous.get("url_status", "UNKNOWN"),
+                "content_changed": previous.get("content_changed", False),
+                "emails": len(previous.get("emails_found", [])),
+                "crypto": len(previous.get("crypto_addresses", []))
+            },
+            "changes": {
+                "threat_score_delta": current.get("threat_score", 0) - previous.get("threat_score", 0),
+                "risk_level_changed": current.get("risk_level") != previous.get("risk_level"),
+                "category_changed": current.get("category") != previous.get("category"),
+                "status_changed": current.get("url_status") != previous.get("url_status"),
+                "new_emails": len(current.get("emails_found", [])) - len(previous.get("emails_found", [])),
+                "new_crypto": len(current.get("crypto_addresses", [])) - len(previous.get("crypto_addresses", []))
+            }
+        }
+        
+        return jsonify(comparison)
+    finally:
         db_manager.close()
 
 
