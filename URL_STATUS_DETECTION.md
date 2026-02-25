@@ -19,7 +19,7 @@ Your darkweb monitor now has **enterprise-grade URL availability monitoring**. T
 
 ## 🛠️ Implementation Details
 
-### 1. **New `fetch_url()` Function** (app/scraper.py)
+### 1. **New `fetch_url()` Function** (backend/app/scraper.py)
 
 ```python
 def fetch_url(url):
@@ -43,7 +43,7 @@ def fetch_url(url):
 - Captures HTTP status code when available
 - Handles SSL certificate warnings (darkweb sites often have untrusted certs)
 
-### 2. **MongoDB Storage** (app/database.py)
+### 2. **MongoDB Storage** (backend/app/database.py)
 
 Each URL document now includes:
 
@@ -79,7 +79,7 @@ Each URL document now includes:
 - `status_code`: HTTP status code (200, 404, 500, etc.)
 - `status_history`: Array tracking all status checks over time
 
-### 3. **Status Summary Report** (main.py)
+### 3. **Status Summary Report** (backend/main.py)
 
 After scraping all URLs, the system displays:
 
@@ -140,14 +140,14 @@ Even when a site is OFFLINE, your system:
 
 ## 🔧 Configuration
 
-Edit `app/config.py` to adjust:
+Edit `backend/app/config.py` to adjust:
 
 ```python
 REQUEST_TIMEOUT = 30  # Seconds before timeout
 DELAY_BETWEEN_REQUESTS = 2  # Seconds between scraping
 ```
 
-Edit `app/scraper.py` to adjust Tor proxy:
+Edit `backend/app/scraper.py` to adjust Tor proxy:
 
 ```python
 TOR_PROXIES = {

@@ -6,7 +6,7 @@ This document describes the ClamAV signature-based malware detection integration
 ## What Was Added
 
 ### 1. **file_analyzer.py** - New `analyze_with_clamav()` Function
-- **Location**: [app/file_analyzer.py](app/file_analyzer.py)
+- **Location**: [backend/app/file_analyzer.py](backend/app/file_analyzer.py)
 - **Functionality**: 
   - Connects to ClamAV daemon (clamd) using pyclamd library
   - Performs signature-based malware scanning on downloaded files
@@ -67,7 +67,7 @@ sudo service clamav-daemon status
 ### Step 2: Install Python Dependencies
 ```bash
 # From workspace root
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # Or specifically:
 pip install pyclamd==0.4.0
@@ -177,7 +177,7 @@ db.collection.aggregate([
 1. Run freshclam during off-peak hours to update signatures
 2. Use ClamAV's multithreading: `--max-threads=4` in clamd.conf
 3. Consider increasing timeout if slowdowns occur:
-   - Edit: `ANALYSIS_TIMEOUT` in [app/file_analyzer.py](app/file_analyzer.py)
+    - Edit: `ANALYSIS_TIMEOUT` in [backend/app/file_analyzer.py](backend/app/file_analyzer.py)
 
 ## Troubleshooting
 
@@ -247,11 +247,11 @@ Potential improvements for future versions:
 
 ## File Locations
 
-- **Main Integration**: [app/file_analyzer.py](app/file_analyzer.py#L246)
-- **Database Storage**: [app/database.py](app/database.py#L76)
-- **Dependencies**: [requirements.txt](requirements.txt)
-- **Downloader**: [app/downloader.py](app/downloader.py)
-- **Main Pipeline**: [main.py](main.py#L100)
+- **Main Integration**: [backend/app/file_analyzer.py](backend/app/file_analyzer.py#L246)
+- **Database Storage**: [backend/app/database.py](backend/app/database.py#L76)
+- **Dependencies**: [backend/requirements.txt](backend/requirements.txt)
+- **Downloader**: [backend/app/downloader.py](backend/app/downloader.py)
+- **Main Pipeline**: [backend/main.py](backend/main.py#L100)
 
 ## Logs & Monitoring
 

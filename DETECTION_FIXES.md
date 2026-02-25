@@ -198,7 +198,7 @@ Alert TRIGGERED: "High Threat Score (74/100)"
 To verify fixes work:
 ```bash
 # Run on test marketplace with carding keywords
-python main.py
+python backend/main.py
 
 # Expected output:
 # - threat_score: 60+ (triggers alert)

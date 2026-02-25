@@ -166,13 +166,14 @@ class DatabaseManager:
             return False
 
     def get_recent_entries(self, limit=10):
-        """Retrieve recent entries from database"""
+        """Retrieve recent entries from database sorted by newest first"""
 
         if self.collection is None:
             logger.error("Database not connected")
             return []
 
         try:
+            # Use -1 for descending order (newest first)
             entries = (
                 list(
                     self.collection
@@ -182,7 +183,7 @@ class DatabaseManager:
                 )
             )
 
-            logger.info(f"Retrieved {len(entries)} entries from database")
+            logger.info(f"Retrieved {len(entries)} entries from database (newest first)")
             return entries
 
         except Exception as e:

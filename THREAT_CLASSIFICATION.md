@@ -6,7 +6,7 @@ The analyzer module now includes structured threat classification with confidenc
 ## What Was Added
 
 ### 1. CATEGORY_RULES Dictionary
-**Location:** [app/analyzer.py](app/analyzer.py#L12-L67)
+**Location:** [backend/app/analyzer.py](backend/app/analyzer.py#L12-L67)
 
 Defines 8 threat categories with:
 - **Keywords**: Set of indicator words for each category
@@ -24,7 +24,7 @@ Defines 8 threat categories with:
 - `Adult Content` - Explicit/18+/escort (weight: 1.5)
 
 ### 2. NEW: classify_threat() Function
-**Location:** [app/analyzer.py](app/analyzer.py#L145-L245)
+**Location:** [backend/app/analyzer.py](backend/app/analyzer.py#L145-L245)
 
 **Purpose:** Advanced classification with confidence scoring
 
@@ -62,7 +62,7 @@ classify_threat(
 - Maximum: 0.99 (never 100% certain)
 
 ### 3. MODIFIED: analyze_content() Function
-**Location:** [app/analyzer.py](app/analyzer.py#L248-L291)
+**Location:** [backend/app/analyzer.py](backend/app/analyzer.py#L248-L291)
 
 **Enhancement:** Now includes classification data
 
@@ -95,7 +95,7 @@ clamav_detected=False  # Optional, defaults to False
 ```
 
 ### 4. Risk Level Mapping
-**Location:** [app/analyzer.py](app/analyzer.py#L105-L138)
+**Location:** [backend/app/analyzer.py](backend/app/analyzer.py#L105-L138)
 
 Maps threat score to human-readable severity:
 - **LOW**: 0-30 points

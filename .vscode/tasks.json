@@ -1,0 +1,22 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "run-backend-flask",
+			"type": "shell",
+			"command": "${workspaceFolder}/.venv/bin/python",
+			"args": [
+				"backend/server.py"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "run-frontend-vite",
+			"type": "shell",
+			"command": "cd frontend && npm install && npm run dev",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

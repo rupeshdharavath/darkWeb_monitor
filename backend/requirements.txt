@@ -1,9 +1,24 @@
-# DarkWeb Monitor - Required Dependencies
+# API server (Flask)
+Flask==3.0.3
+Flask-Cors==4.0.1
 
-# Web scraping and requests
+# Flask dependencies
+blinker==1.9.0
+click==8.3.1
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+Werkzeug==3.1.6
+
+# Web scraping and parsing
 requests==2.31.0
 beautifulsoup4==4.12.3
 lxml==5.1.0
+soupsieve==2.5
+urllib3==2.2.0
+certifi==2024.2.2
+charset-normalizer==3.3.2
+idna==3.11
 
 # Tor connectivity
 PySocks==1.7.1
@@ -16,15 +31,6 @@ dnspython==2.5.0
 # Environment variables
 python-dotenv==1.0.1
 
-# Utilities
-urllib3==2.2.0
-certifi==2024.2.2
-charset-normalizer==3.3.2
-soupsieve==2.5
-
 # Malware detection
-pyclamd==0.4.0
+pyClamd==0.4.0
 
-# API server
-fastapi==0.115.6
-uvicorn==0.30.6

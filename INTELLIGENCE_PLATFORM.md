@@ -42,7 +42,7 @@ db.alerts.insertOne({
 
 ### Implementation Details
 
-#### database.py - New Methods
+#### backend/app/database.py - New Methods
 
 **1. `insert_alert(alert_data)`**
 ```python
@@ -56,7 +56,7 @@ db_manager.insert_alert({
 })
 ```
 
-**2. Alert Triggers in main.py**
+**2. Alert Triggers in backend/main.py**
 
 **Trigger 1: Threat Score**
 ```python
@@ -176,7 +176,7 @@ if reuse_info and reuse_info["exists"]:
     print(f"Alert: Crypto address used on {reuse_info['reuse_count']} URLs")
 ```
 
-#### main.py - IOC Tracking
+#### backend/main.py - IOC Tracking
 
 **Email Tracking**
 ```python

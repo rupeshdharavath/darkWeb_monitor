@@ -101,21 +101,21 @@ urls_to_scrape = [
 
 ## 🚀 Next Steps
 
-### 1. Update URLs in main.py
+### 1. Update URLs in backend/main.py
 The file already has working URLs configured. Just run:
 
 ```bash
 cd /home/kali/mini_project/darkweb-monitor
-python main.py
+python backend/main.py
 ```
 
 ### 2. Check Logs
 ```bash
 # See what happened
-cat logs/system.log | tail -50
+cat backend/logs/system.log | tail -50
 
 # See only errors/warnings
-cat logs/alerts.log
+cat backend/logs/alerts.log
 ```
 
 ### 3. Verify Database
@@ -139,8 +139,8 @@ sudo service tor start
 # Verify Tor is running
 curl --socks5-hostname 127.0.0.1:9050 http://thehiddenwiki.onion/
 
-# Update main.py to include .onion URLs
-# Then run: python main.py
+# Update backend/main.py to include .onion URLs
+# Then run: python backend/main.py
 ```
 
 ## 📊 Expected Output
@@ -163,10 +163,10 @@ Run this to verify everything works:
 
 ```bash
 cd /home/kali/mini_project/darkweb-monitor
-python main.py
+python backend/main.py
 echo ""
 echo "=== Check Results ==="
-tail -20 logs/system.log | grep -E "ONLINE|threat_score|Successfully processed"
+tail -20 backend/logs/system.log | grep -E "ONLINE|threat_score|Successfully processed"
 ```
 
 Look for:
@@ -187,10 +187,10 @@ Look for:
 
 ## 🔧 Files Modified
 
-- ✅ [`app/scraper.py`](app/scraper.py) - Fixed fetch_url, content-type checking, Tor routing
-- ✅ [`main.py`](main.py) - Fixed ONLINE status handling, added working test URLs
-- ✅ [`app/logger.py`](app/logger.py) - Already had professional logging setup
-- ✅ [`app/utils.py`](app/utils.py) - Already using enhanced logger
+- ✅ [backend/app/scraper.py](backend/app/scraper.py) - Fixed fetch_url, content-type checking, Tor routing
+- ✅ [backend/main.py](backend/main.py) - Fixed ONLINE status handling, added working test URLs
+- ✅ [backend/app/logger.py](backend/app/logger.py) - Already had professional logging setup
+- ✅ [backend/app/utils.py](backend/app/utils.py) - Already using enhanced logger
 
 ---
 

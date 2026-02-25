@@ -47,7 +47,7 @@ urls_to_scrape = [
 ]
 ```
 
-Run: `python main.py`
+Run: `python backend/main.py`
 
 **Expected:** Should fetch content successfully without 403 error.
 
@@ -94,7 +94,7 @@ urls_to_scrape = [
 
 ### Check System Log
 ```bash
-cat logs/system.log | tail -30
+cat backend/logs/system.log | tail -30
 ```
 
 **What to look for:**
@@ -105,7 +105,7 @@ cat logs/system.log | tail -30
 
 ### Check Alert Log
 ```bash
-cat logs/alerts.log | tail -20
+cat backend/logs/alerts.log | tail -20
 ```
 
 **What to look for:**
@@ -175,22 +175,22 @@ Check the logs for:
 
 ## 🎯 Next Steps
 
-1. **Update your URLs** in `main.py` with working test URLs
-2. **Run the script**: `python main.py`
-3. **Check logs**: `cat logs/system.log`
+1. **Update your URLs** in `backend/main.py` with working test URLs
+2. **Run the script**: `python backend/main.py`
+3. **Check logs**: `cat backend/logs/system.log`
 4. **Verify MongoDB**: Check that content is actually being parsed and analyzed
 5. **Test both types**: Try regular HTTPS URLs and .onion URLs
 
 ## 📝 Code Changes Summary
 
 ### Modified Files
-- ✅ [`app/scraper.py`](app/scraper.py)
+- ✅ [backend/app/scraper.py](backend/app/scraper.py)
   - Added `response_headers` to fetch_url return
   - Improved content-type validation (permissive approach)
   - Auto-detect .onion URLs for Tor routing
   - Added empty content check
 
-- ✅ [`main.py`](main.py)
+- ✅ [backend/main.py](backend/main.py)
   - Fixed ONLINE status handling (now stores data even when content fails)
   - Better error tracking for all URL statuses
 
@@ -199,7 +199,7 @@ Check the logs for:
 Add this to test the fixes:
 
 ```python
-# In main.py, replace urls_to_scrape with:
+# In backend/main.py, replace urls_to_scrape with:
 urls_to_scrape = [
     "https://httpbin.org/html",  # Should work - HTML test page
 ]

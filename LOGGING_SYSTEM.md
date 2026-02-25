@@ -3,12 +3,12 @@
 ## ✅ What Was Implemented
 
 ### 1. **Rotating File Handlers**
-Created [`app/logger.py`](app/logger.py) with:
-- **`logs/system.log`** - All events (INFO, WARNING, ERROR, CRITICAL)
+Created [backend/app/logger.py](backend/app/logger.py) with:
+- **`backend/logs/system.log`** - All events (INFO, WARNING, ERROR, CRITICAL)
   - Max size: 5MB per file
   - Backup files: 3 (auto-rotates)
   
-- **`logs/alerts.log`** - High-priority events only (WARNING+)
+- **`backend/logs/alerts.log`** - High-priority events only (WARNING+)
   - Max size: 2MB per file
   - Backup files: 2 (auto-rotates)
   - Captures: Warnings, Errors, Critical alerts
@@ -41,16 +41,16 @@ Consistent timestamp format across all logs:
 ## 📂 Updated Files
 
 ### ✅ Created
-- [`app/logger.py`](app/logger.py) - New rotating logger implementation
+- [backend/app/logger.py](backend/app/logger.py) - New rotating logger implementation
 
 ### ✅ Modified
-- [`app/utils.py`](app/utils.py) - Now imports from `app.logger`
-- [`app/analyzer.py`](app/analyzer.py) - Added threat detection logging
-- [`main.py`](main.py) - Integrated enhanced logging functions
+- [backend/app/utils.py](backend/app/utils.py) - Now imports from `app.logger`
+- [backend/app/analyzer.py](backend/app/analyzer.py) - Added threat detection logging
+- [backend/main.py](backend/main.py) - Integrated enhanced logging functions
 
 ## 🔥 What Gets Logged
 
-### System Events (logs/system.log)
+### System Events (backend/logs/system.log)
 - ✅ Tor connection status
 - ✅ Database connection status
 - ✅ URL scraping attempts (ONLINE/OFFLINE/TIMEOUT/ERROR)
@@ -63,7 +63,7 @@ Consistent timestamp format across all logs:
 - ✅ Content change detection
 - ✅ Malware/ClamAV alerts
 
-### Alert Events (logs/alerts.log)
+### Alert Events (backend/logs/alerts.log)
 - ⚠️ URL TIMEOUT events
 - ⚠️ URL OFFLINE events
 - ⚠️ High threat scores (> 50)
@@ -78,12 +78,12 @@ Consistent timestamp format across all logs:
 
 ### 1. Run Your System
 ```bash
-python main.py
+python backend/main.py
 ```
 
 ### 2. Check System Log
 ```bash
-cat logs/system.log
+cat backend/logs/system.log
 ```
 
 **Expected output:**
@@ -100,7 +100,7 @@ cat logs/system.log
 
 ### 3. Check Alert Log
 ```bash
-cat logs/alerts.log
+cat backend/logs/alerts.log
 ```
 
 **Expected output (only warnings/errors):**
@@ -113,16 +113,16 @@ cat logs/alerts.log
 ### 4. Monitor Logs in Real-Time
 ```bash
 # Watch system log
-tail -f logs/system.log
+tail -f backend/logs/system.log
 
 # Watch alert log
-tail -f logs/alerts.log
+tail -f backend/logs/alerts.log
 ```
 
 ### 5. Check Log File Rotation
 After your logs reach 5MB, you'll see:
 ```
-logs/
+backend/logs/
 ├── system.log          # Current log
 ├── system.log.1        # Backup 1 (most recent)
 ├── system.log.2        # Backup 2
@@ -134,7 +134,7 @@ logs/
 
 ## 🎯 Integration Points
 
-### In main.py
+### In backend/main.py
 ```python
 from app.logger import (
     log_url_status,
@@ -172,38 +172,38 @@ Already logs URL status for each request
 
 ### Find all TIMEOUT events
 ```bash
-grep "TIMEOUT" logs/system.log
+grep "TIMEOUT" backend/logs/system.log
 ```
 
 ### Find all high-threat detections
 ```bash
-grep "Threat detected" logs/alerts.log
+grep "Threat detected" backend/logs/alerts.log
 ```
 
 ### Count IOC reuses
 ```bash
-grep "IOC REUSE" logs/alerts.log | wc -l
+grep "IOC REUSE" backend/logs/alerts.log | wc -l
 ```
 
 ### Find malware detections
 ```bash
-grep "MALWARE DETECTED" logs/alerts.log
+grep "MALWARE DETECTED" backend/logs/alerts.log
 ```
 
 ### Get today's errors
 ```bash
-grep "$(date +%Y-%m-%d)" logs/alerts.log | grep "ERROR"
+grep "$(date +%Y-%m-%d)" backend/logs/alerts.log | grep "ERROR"
 ```
 
 ## 🔧 Customization
 
 ### Change Log Rotation Settings
-Edit [`app/logger.py`](app/logger.py):
+Edit [backend/app/logger.py](backend/app/logger.py):
 
 ```python
 # Increase system log size to 10MB
 system_handler = RotatingFileHandler(
-    "logs/system.log",
+    "backend/logs/system.log",
     maxBytes=10 * 1024 * 1024,  # 10MB
     backupCount=5,              # Keep 5 backups
     encoding='utf-8'
@@ -212,7 +212,7 @@ system_handler = RotatingFileHandler(
 
 ### Add Custom Log Levels
 ```python
-# In app/logger.py, add new function:
+# In backend/app/logger.py, add new function:
 def log_database_operations(operation, status, details):
     """Log database operations"""
     logger.info(f"DB {operation}: {status} - {details}")
