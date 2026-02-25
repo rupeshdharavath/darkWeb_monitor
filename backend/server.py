@@ -497,14 +497,15 @@ def compare_scans(url_hash: str) -> Any:
         return jsonify({"detail": "Database connection failed"}), 500
     
     try:
-        # URL is passed as hash, need to find by URL
+        # URL is URL-encoded in the path
+        decoded_url = urllib.parse.unquote(url_hash)
         # Get limit parameter
         limit = request.args.get("limit", 2, type=int)
         
         # Find scans by URL
         scans = list(
             db_manager.collection
-            .find({"url": {"$regex": url_hash}})
+            .find({"url": {"$regex": decoded_url}})
             .sort("timestamp", -1)
             .limit(limit)
         )

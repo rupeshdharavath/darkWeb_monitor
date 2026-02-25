@@ -1,13 +1,19 @@
 import { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import SearchBar from "../components/SearchBar.jsx";
 import StatusCard from "../components/StatusCard.jsx";
 import ThreatScoreCard from "../components/ThreatScoreCard.jsx";
 import CategoryPieChart from "../components/CategoryPieChart.jsx";
 import ThreatBarChart from "../components/ThreatBarChart.jsx";
 import TimelineChart from "../components/TimelineChart.jsx";
 import Loader from "../components/Loader.jsx";
-import { scanOnion, getHistoryEntry } from "../services/api.js";
+import {
+  scanOnion,
+  getHistoryEntry,
+  createMonitor,
+  deleteMonitor,
+  getAlerts,
+  compareScans
+} from "../services/api.js";
 
 const placeholderData = {
   status: "OFFLINE",
@@ -60,50 +66,167 @@ const riskStyles = {
   HIGH: "bg-neon-red/15 text-neon-red border-neon-red/40"
 };
 
+const MAX_TABS = 5;
+
+const buildTab = (index, baseTimestamp) => ({
+  id: baseTimestamp + index,
+  url: "",
+  scanResult: null,
+  isLoading: false,
+  error: "",
+  monitorId: null,
+  isMonitoring: false,
+  comparison: null,
+  compareError: ""
+});
+
 export default function Dashboard() {
   const { entryId } = useParams();
   const navigate = useNavigate();
-  const [scanResult, setScanResult] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [tabs, setTabs] = useState([]);
+  const [activeTab, setActiveTab] = useState(0);
+  const [alerts, setAlerts] = useState([]);
+  const [showAlerts, setShowAlerts] = useState(false);
 
   // Load entry from history if entryId is provided
   useEffect(() => {
-    if (entryId) {
+    if (entryId && tabs.length > 0) {
       loadHistoryEntry(entryId);
     }
-  }, [entryId]);
+  }, [entryId, tabs.length, activeTab]);
+
+  // Initialize five tabs on first load
+  useEffect(() => {
+    if (tabs.length === 0) {
+      const baseTimestamp = Date.now();
+      const initialTabs = Array.from({ length: MAX_TABS }, (_, index) => buildTab(index, baseTimestamp));
+      setTabs(initialTabs);
+    }
+  }, [tabs.length]);
+
+  // Refresh alerts periodically (monitoring scans happen on backend)
+  useEffect(() => {
+    loadAlerts();
+    const interval = setInterval(() => {
+      loadAlerts();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadHistoryEntry = async (id) => {
-    setIsLoading(true);
-    setError("");
+    const updatedTabs = [...tabs];
+    if (!updatedTabs[activeTab]) return;
+    updatedTabs[activeTab].isLoading = true;
+    updatedTabs[activeTab].error = "";
+    setTabs(updatedTabs);
     try {
       const data = await getHistoryEntry(id);
-      setScanResult({ ...placeholderData, ...data });
+      updatedTabs[activeTab].scanResult = { ...placeholderData, ...data };
+      updatedTabs[activeTab].url = data.url || updatedTabs[activeTab].url;
+      updatedTabs[activeTab].isLoading = false;
+      setTabs(updatedTabs);
+      if (data.url) {
+        loadComparison(data.url, activeTab);
+      }
     } catch (err) {
-      setError("Failed to load scan entry. Please try again.");
-    } finally {
-      setIsLoading(false);
+      updatedTabs[activeTab].error = "Failed to load scan entry. Please try again.";
+      updatedTabs[activeTab].isLoading = false;
+      setTabs(updatedTabs);
     }
   };
 
-  const handleSearch = async (url) => {
-    setIsLoading(true);
-    setError("");
+  const handleSearch = async (url, tabIndex) => {
+    if (!url) return;
+    const updatedTabs = [...tabs];
+    updatedTabs[tabIndex].isLoading = true;
+    updatedTabs[tabIndex].error = "";
+    setTabs(updatedTabs);
     try {
       const data = await scanOnion(url);
-      setScanResult({ ...placeholderData, ...data, url });
+      updatedTabs[tabIndex].scanResult = { ...placeholderData, ...data, url };
+      updatedTabs[tabIndex].url = url;
+      updatedTabs[tabIndex].isLoading = false;
+      setTabs(updatedTabs);
+      loadComparison(url, tabIndex);
     } catch (err) {
-      setError("Scan failed. Please check the URL or API availability.");
-    } finally {
-      setIsLoading(false);
+      updatedTabs[tabIndex].error = "Scan failed. Please check the URL or API availability.";
+      updatedTabs[tabIndex].isLoading = false;
+      setTabs(updatedTabs);
     }
   };
 
+  const loadComparison = async (url, tabIndex) => {
+    if (!url || !tabs[tabIndex]) return;
+    try {
+      const data = await compareScans(encodeURIComponent(url));
+      const updatedTabs = [...tabs];
+      updatedTabs[tabIndex].comparison = data;
+      updatedTabs[tabIndex].compareError = "";
+      setTabs(updatedTabs);
+    } catch (err) {
+      const updatedTabs = [...tabs];
+      if (!updatedTabs[tabIndex]) return;
+      updatedTabs[tabIndex].comparison = null;
+      updatedTabs[tabIndex].compareError = "Not enough scans to compare yet.";
+      setTabs(updatedTabs);
+    }
+  };
+
+  const loadAlerts = async () => {
+    try {
+      const data = await getAlerts();
+      const newAlerts = (data.alerts || []).filter((alert) => alert.status === "new");
+      setAlerts(newAlerts);
+    } catch (err) {
+      console.error("Failed to load alerts:", err);
+    }
+  };
+
+  const toggleMonitoring = async (tabIndex) => {
+    const tab = tabs[tabIndex];
+    if (!tab) return;
+
+    if (tab.isMonitoring) {
+      try {
+        await deleteMonitor(tab.monitorId);
+        const updatedTabs = [...tabs];
+        updatedTabs[tabIndex].isMonitoring = false;
+        updatedTabs[tabIndex].monitorId = null;
+        setTabs(updatedTabs);
+      } catch (err) {
+        console.error("Failed to stop monitoring:", err);
+      }
+      return;
+    }
+
+    if (!tab.url) {
+      alert("Please scan a URL first");
+      return;
+    }
+
+    try {
+      const data = await createMonitor(tab.url, 5);
+      const updatedTabs = [...tabs];
+      updatedTabs[tabIndex].isMonitoring = true;
+      updatedTabs[tabIndex].monitorId = data.monitor_id;
+      setTabs(updatedTabs);
+    } catch (err) {
+      console.error("Failed to start monitoring:", err);
+      alert("Failed to start monitoring");
+    }
+  };
+
+  const currentTab = tabs[activeTab];
+  const scanResult = currentTab?.scanResult || null;
+  const isLoading = currentTab?.isLoading || false;
+  const error = currentTab?.error || "";
+  const comparison = currentTab?.comparison || null;
+  const compareError = currentTab?.compareError || "";
   const displayData = scanResult || placeholderData;
+  const displayUrl = scanResult?.url || currentTab?.url || "";
 
   const headerText = scanResult
-    ? `Scan Results for ${displayData.url}`
+    ? `Scan Results for ${displayUrl}`
     : "Darkweb Intelligence Console";
 
   const dataReady = !!scanResult;
@@ -148,8 +271,8 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="min-h-screen px-6 py-12 lg:px-16">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
+    <div className="min-h-screen px-6 py-8 lg:px-16">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
         <header className="flex flex-col gap-4">
           {entryId && (
             <button
@@ -174,9 +297,128 @@ export default function Dashboard() {
           )}
         </header>
 
-        {!dataReady && !isLoading && (
-          <div className="flex min-h-[50vh] items-center justify-center">
-            <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Active Tabs</p>
+            <p className="text-sm text-gray-400">Monitor up to {MAX_TABS} onion sites</p>
+          </div>
+          <button
+            onClick={() => setShowAlerts(!showAlerts)}
+            className="relative rounded-lg bg-neon-red/10 px-4 py-2 text-sm font-medium text-neon-red border border-neon-red/30 hover:bg-neon-red/20 transition-colors"
+          >
+            Alerts {alerts.length > 0 && `(${alerts.length})`}
+            {alerts.length > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-neon-red text-xs text-white">
+                {alerts.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {showAlerts && (
+          <div className="rounded-lg border border-neon-red/40 bg-neon-red/10 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neon-red">Threat Score Alerts</h3>
+              <button
+                onClick={() => setShowAlerts(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-4 space-y-2 max-h-80 overflow-y-auto">
+              {alerts.length === 0 ? (
+                <p className="text-sm text-gray-400">No new alerts</p>
+              ) : (
+                alerts.map((alert) => (
+                  <div key={alert._id} className="rounded-lg border border-neon-red/30 bg-black/20 p-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-neon-red">{alert.reason}</p>
+                        <p className="mt-1 text-xs text-gray-400 break-all">{alert.url}</p>
+                        <div className="mt-2 flex gap-3 text-xs text-gray-500">
+                          <span>Score: {alert.previous_score} → {alert.threat_score} (+{alert.score_increase})</span>
+                          <span>•</span>
+                          <span>{formatTimestamp(alert.timestamp)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 border-b border-white/10 overflow-x-auto pb-2">
+          {tabs.map((tab, index) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(index)}
+              className={`flex flex-col items-start gap-1 rounded-t-lg border-x border-t px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === index
+                  ? "border-neon-green/40 bg-gray-900 text-white"
+                  : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                {`Tab ${index + 1}`}
+                {tab.isMonitoring && <span className="text-xs text-neon-green">●</span>}
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${
+                    tab.scanResult?.status === "ONLINE"
+                      ? "border-neon-green/40 text-neon-green"
+                      : tab.scanResult?.status === "OFFLINE"
+                        ? "border-neon-red/40 text-neon-red"
+                        : "border-white/10 text-gray-400"
+                  }`}
+                >
+                  {tab.scanResult?.status || "UNKNOWN"}
+                </span>
+              </span>
+              <span className="text-[10px] text-gray-500">
+                {tab.scanResult?.timestamp ? formatTimestamp(tab.scanResult.timestamp) : "Not scanned"}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {currentTab && (
+          <div className="flex flex-wrap items-center gap-4">
+            <input
+              type="text"
+              placeholder="http://exampleonion.onion"
+              value={currentTab.url || ""}
+              onChange={(event) => {
+                const updatedTabs = [...tabs];
+                updatedTabs[activeTab].url = event.target.value;
+                setTabs(updatedTabs);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  handleSearch(currentTab.url, activeTab);
+                }
+              }}
+              className="flex-1 min-w-[240px] rounded-xl border border-white/10 bg-gray-900/60 px-4 py-3 text-base text-gray-100 outline-none transition focus:border-neon-blue/70 focus:ring-2 focus:ring-neon-blue/30"
+            />
+            <button
+              onClick={() => handleSearch(currentTab.url, activeTab)}
+              disabled={isLoading || !currentTab.url}
+              className="rounded-xl border border-neon-green/40 bg-neon-green/20 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neon-green transition hover:bg-neon-green/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isLoading ? "Scanning" : "Search"}
+            </button>
+            <button
+              onClick={() => toggleMonitoring(activeTab)}
+              disabled={!currentTab.scanResult}
+              className={`rounded-xl border px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition ${
+                currentTab.isMonitoring
+                  ? "border-neon-red/40 bg-neon-red/20 text-neon-red hover:bg-neon-red/30"
+                  : "border-neon-yellow/40 bg-neon-yellow/20 text-neon-yellow hover:bg-neon-yellow/30"
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              {currentTab.isMonitoring ? "Stop Monitor" : "Start Monitor"}
+            </button>
           </div>
         )}
 
@@ -195,12 +437,109 @@ export default function Dashboard() {
         {dataReady && !isLoading && (
           <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-6">
-              <SearchBar onSearch={handleSearch} isLoading={isLoading} />
               <div className="grid gap-6 md:grid-cols-2">
                 <StatusCard status={displayData.status} />
                 <ThreatScoreCard score={displayData.threatScore} />
               </div>
             </div>
+
+            <section className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
+                <p className="text-sm font-semibold">Current Scan</p>
+                <div className="mt-4 space-y-3 text-sm text-gray-300">
+                  <div className="flex items-center justify-between">
+                    <span>Threat Score</span>
+                    <span className="text-gray-200">{displayData.threatScore}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Risk Level</span>
+                    <span className="text-gray-200">{displayData.riskLevel}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Status</span>
+                    <span className="text-gray-200">{displayData.status}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Emails Found</span>
+                    <span className="text-gray-200">{displayData.emails?.length || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Crypto Addresses</span>
+                    <span className="text-gray-200">{displayData.cryptoAddresses?.length || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
+                <p className="text-sm font-semibold">Previous Scan</p>
+                {comparison ? (
+                  <div className="mt-4 space-y-3 text-sm text-gray-300">
+                    <div className="flex items-center justify-between">
+                      <span>Threat Score</span>
+                      <span className="text-gray-200">{comparison.previous?.threat_score ?? "-"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Risk Level</span>
+                      <span className="text-gray-200">{comparison.previous?.risk_level ?? "-"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Status</span>
+                      <span className="text-gray-200">{comparison.previous?.url_status ?? "-"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Emails Found</span>
+                      <span className="text-gray-200">{comparison.previous?.emails ?? 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Crypto Addresses</span>
+                      <span className="text-gray-200">{comparison.previous?.crypto ?? 0}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-gray-500">{compareError || "Waiting for previous scan data."}</p>
+                )}
+              </div>
+            </section>
+
+            {comparison && (
+              <section className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
+                <p className="text-sm font-semibold">Changes Detected</p>
+                <div className="mt-4 grid gap-4 text-sm text-gray-300 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="flex items-center justify-between">
+                    <span>Threat Score Δ</span>
+                    <span className={comparison.changes?.threat_score_delta > 0 ? "text-neon-red" : "text-gray-200"}>
+                      {comparison.changes?.threat_score_delta ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Risk Level Change</span>
+                    <span className="text-gray-200">
+                      {comparison.changes?.risk_level_changed ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Status Change</span>
+                    <span className="text-gray-200">
+                      {comparison.changes?.status_changed ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Category Change</span>
+                    <span className="text-gray-200">
+                      {comparison.changes?.category_changed ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>New Emails</span>
+                    <span className="text-gray-200">{comparison.changes?.new_emails ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>New Crypto</span>
+                    <span className="text-gray-200">{comparison.changes?.new_crypto ?? 0}</span>
+                  </div>
+                </div>
+              </section>
+            )}
 
             <section className="grid gap-6 lg:grid-cols-3">
               <div className="rounded-xl border border-white/10 bg-gray-900/50 p-6">

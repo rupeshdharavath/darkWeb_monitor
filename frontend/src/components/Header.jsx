@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 export default function Header() {
   const location = useLocation();
   const isHistory = location.pathname === "/history";
-  const isMonitors = location.pathname === "/monitors";
   const isDashboard = location.pathname === "/" || location.pathname.startsWith("/entry/");
 
   return (
@@ -31,16 +30,6 @@ export default function Header() {
             }`}
           >
             Dashboard
-          </Link>
-          <Link
-            to="/monitors"
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              isMonitors
-                ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
-                : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-            }`}
-          >
-            Monitors
           </Link>
           <Link
             to="/history"
