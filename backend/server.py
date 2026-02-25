@@ -12,7 +12,7 @@ from app.scraper import scrape_url
 from app.parser import parse_html
 from app.analyzer import analyze_content
 from app.database import DatabaseManager
-from app.utils import sanitize_url
+from app.utils import sanitize_url, logger
 from app.downloader import download_file
 from app.file_analyzer import analyze_file
 from app.monitor import monitor_manager
@@ -362,36 +362,97 @@ def scan_url() -> Any:
 
 @app.route("/monitors", methods=["GET"])
 def list_monitors() -> Any:
-    """Get all active monitors"""
+    """Get all active monitors with last scan details"""
     monitors = monitor_manager.list_monitors()
-    return jsonify({"monitors": monitors})
+    db_manager = DatabaseManager()
+    
+    try:
+        # Enrich each monitor with last scan data
+        enriched_monitors = []
+        for monitor_id, monitor_data in monitors.items():
+            # Get last scan for this URL
+            last_scan = db_manager.collection.find_one(
+                {"url": monitor_data["url"]},
+                sort=[("timestamp", -1)]
+            )
+            
+            # Check if monitor is paused
+            try:
+                job = monitor_manager.scheduler.get_job(monitor_id)
+                is_paused = job is not None and job.next_run_time is None
+            except:
+                is_paused = False
+            
+            monitor_info = {
+                "monitor_id": monitor_id,
+                **monitor_data,
+                "paused": is_paused,
+                "last_scan_data": None
+            }
+            
+            if last_scan:
+                monitor_info["last_scan_data"] = {
+                    "threat_score": last_scan.get("threat_score", 0),
+                    "status": last_scan.get("url_status", "UNKNOWN"),
+                    "risk_level": last_scan.get("risk_level", "LOW"),
+                    "category": last_scan.get("category", "Unknown"),
+                    "emails_count": len(last_scan.get("emails_found", [])),
+                    "urls_count": len(last_scan.get("urls_found", [])),
+                    "ips_count": len(last_scan.get("ip_addresses", [])),
+                    "crypto_count": len(last_scan.get("crypto_addresses", [])),
+                    "clamav_detected": last_scan.get("clamav_detected", False)
+                }
+            
+            enriched_monitors.append(monitor_info)
+            
+        return jsonify({"monitors": enriched_monitors})
+    finally:
+        db_manager.close()
 
 
 @app.route("/monitors", methods=["POST"])
 def create_monitor() -> Any:
     """Create a new monitoring job"""
-    payload = request.get_json(silent=True) or {}
-    url = sanitize_url(payload.get("url"))
-    interval = payload.get("interval", 5)  # default 5 minutes
-    
-    if not url:
-        return jsonify({"detail": "Invalid URL"}), 400
-    
-    # Generate monitor ID
-    import hashlib
-    monitor_id = hashlib.md5(url.encode()).hexdigest()[:12]
-    
-    success = monitor_manager.add_monitor(monitor_id, url, interval)
-    
-    if success:
-        return jsonify({
-            "monitor_id": monitor_id,
-            "url": url,
-            "interval": interval,
-            "message": "Monitor created successfully"
-        }), 201
-    else:
-        return jsonify({"detail": "Failed to create monitor"}), 500
+    try:
+        payload = request.get_json(silent=True) or {}
+        raw_url = payload.get("url")
+        logger.info(f"Received monitor creation request for URL: {raw_url}")
+        
+        url = sanitize_url(raw_url)
+        interval = payload.get("interval", 5)  # default 5 minutes
+        
+        if not url:
+            error_msg = f"Invalid URL: '{raw_url}'. URL must start with http:// or https://"
+            logger.warning(error_msg)
+            return jsonify({"detail": error_msg}), 400
+        
+        # Check monitor limit (max 5)
+        current_monitors = monitor_manager.list_monitors()
+        if len(current_monitors) >= 5:
+            return jsonify({"detail": "Maximum 5 monitors allowed. Please delete an existing monitor to add a new one."}), 400
+        
+        # Generate monitor ID
+        import hashlib
+        monitor_id = hashlib.md5(url.encode()).hexdigest()[:12]
+        
+        logger.info(f"Creating monitor for URL: {url} with ID: {monitor_id}")
+        
+        success, error_msg = monitor_manager.add_monitor(monitor_id, url, interval)
+        
+        if success:
+            logger.info(f"Monitor created successfully: {monitor_id}")
+            return jsonify({
+                "monitor_id": monitor_id,
+                "url": url,
+                "interval": interval,
+                "message": "Monitor created successfully"
+            }), 201
+        else:
+            logger.error(f"Failed to create monitor {monitor_id}: {error_msg}")
+            return jsonify({"detail": error_msg or "Failed to create monitor"}), 500
+    except Exception as e:
+        logger.error(f"Unexpected error creating monitor: {str(e)}", exc_info=True)
+        return jsonify({"detail": f"Internal server error: {str(e)}"}), 500
 
 
 @app.route("/monitors/<monitor_id>", methods=["GET"])
@@ -411,6 +472,22 @@ def delete_monitor(monitor_id: str) -> Any:
         return jsonify({"message": "Monitor deleted successfully"})
     else:
         return jsonify({"detail": "Monitor not found"}), 404
+
+
+@app.route("/monitors/all", methods=["DELETE"])
+def delete_all_monitors() -> Any:
+    """Delete all monitors (utility endpoint)"""
+    try:
+        monitors = monitor_manager.list_monitors()
+        deleted_count = 0
+        for monitor_id in list(monitors.keys()):
+            if monitor_manager.remove_monitor(monitor_id):
+                deleted_count += 1
+        logger.info(f"Deleted {deleted_count} monitors")
+        return jsonify({"message": f"Deleted {deleted_count} monitors", "count": deleted_count})
+    except Exception as e:
+        logger.error(f"Failed to delete all monitors: {str(e)}")
+        return jsonify({"detail": str(e)}), 500
 
 
 @app.route("/monitors/<monitor_id>/pause", methods=["POST"])
@@ -502,10 +579,10 @@ def compare_scans(url_hash: str) -> Any:
         # Get limit parameter
         limit = request.args.get("limit", 2, type=int)
         
-        # Find scans by URL
+        # Find scans by exact URL match
         scans = list(
             db_manager.collection
-            .find({"url": {"$regex": decoded_url}})
+            .find({"url": decoded_url})
             .sort("timestamp", -1)
             .limit(limit)
         )

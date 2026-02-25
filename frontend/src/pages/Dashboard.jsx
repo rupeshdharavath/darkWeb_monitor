@@ -1,16 +1,18 @@
 import { useMemo, useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import StatusCard from "../components/StatusCard.jsx";
 import ThreatScoreCard from "../components/ThreatScoreCard.jsx";
 import CategoryPieChart from "../components/CategoryPieChart.jsx";
 import ThreatBarChart from "../components/ThreatBarChart.jsx";
 import TimelineChart from "../components/TimelineChart.jsx";
 import Loader from "../components/Loader.jsx";
+import ScanProgress from "../components/ScanProgress.jsx";
 import {
   scanOnion,
   getHistoryEntry,
   createMonitor,
   deleteMonitor,
+  getMonitor,
   getAlerts,
   compareScans
 } from "../services/api.js";
@@ -66,45 +68,77 @@ const riskStyles = {
   HIGH: "bg-neon-red/15 text-neon-red border-neon-red/40"
 };
 
-const MAX_TABS = 5;
-
-const buildTab = (index, baseTimestamp) => ({
-  id: baseTimestamp + index,
-  url: "",
-  scanResult: null,
-  isLoading: false,
-  error: "",
-  monitorId: null,
-  isMonitoring: false,
-  comparison: null,
-  compareError: ""
-});
-
 export default function Dashboard() {
   const { entryId } = useParams();
   const navigate = useNavigate();
-  const [tabs, setTabs] = useState([]);
-  const [activeTab, setActiveTab] = useState(0);
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const queryUrl = searchParams.get("url");
+  const { alertData = null } = location.state || {};
+  const [url, setUrl] = useState("");
+  const [scanResult, setScanResult] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [monitorId, setMonitorId] = useState(null);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [comparison, setComparison] = useState(null);
+  const [compareError, setCompareError] = useState("");
   const [alerts, setAlerts] = useState([]);
   const [showAlerts, setShowAlerts] = useState(false);
 
+  // Load URL from query parameter on mount
+  useEffect(() => {
+    if (queryUrl) {
+      try {
+        // Decode the URL from query param
+        const decodedUrl = decodeURIComponent(queryUrl);
+        setUrl(decodedUrl);
+        handleSearchWithUrl(decodedUrl);
+      } catch (err) {
+        console.error("Failed to decode URL from query param:", err);
+      }
+    }
+  }, [queryUrl]);
+
+  const handleSearchWithUrl = async (urlToSearch) => {
+    if (!urlToSearch.trim()) return;
+    
+    setIsLoading(true);
+    setError("");
+    try {
+      const data = await scanOnion(urlToSearch.trim());
+      const newScanResult = { ...placeholderData, ...data, url: urlToSearch.trim() };
+      setScanResult(newScanResult);
+      setUrl(urlToSearch.trim());
+      loadComparison(urlToSearch.trim());
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || "Scan failed");
+      setScanResult(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Verify if monitor still exists
+  const verifyMonitor = async (monitorIdToCheck) => {
+    try {
+      await getMonitor(monitorIdToCheck);
+      setIsMonitoring(true);
+    } catch (err) {
+      // Monitor doesn't exist anymore
+      setIsMonitoring(false);
+      setMonitorId(null);
+    }
+  };
+
   // Load entry from history if entryId is provided
   useEffect(() => {
-    if (entryId && tabs.length > 0) {
+    if (entryId) {
       loadHistoryEntry(entryId);
     }
-  }, [entryId, tabs.length, activeTab]);
+  }, [entryId]);
 
-  // Initialize five tabs on first load
-  useEffect(() => {
-    if (tabs.length === 0) {
-      const baseTimestamp = Date.now();
-      const initialTabs = Array.from({ length: MAX_TABS }, (_, index) => buildTab(index, baseTimestamp));
-      setTabs(initialTabs);
-    }
-  }, [tabs.length]);
-
-  // Refresh alerts periodically (monitoring scans happen on backend)
+  // Refresh alerts periodically
   useEffect(() => {
     loadAlerts();
     const interval = setInterval(() => {
@@ -113,62 +147,59 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Periodically verify monitor status
+  useEffect(() => {
+    if (monitorId) {
+      const interval = setInterval(() => {
+        verifyMonitor(monitorId);
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [monitorId]);
+
   const loadHistoryEntry = async (id) => {
-    const updatedTabs = [...tabs];
-    if (!updatedTabs[activeTab]) return;
-    updatedTabs[activeTab].isLoading = true;
-    updatedTabs[activeTab].error = "";
-    setTabs(updatedTabs);
+    setIsLoading(true);
+    setError("");
     try {
       const data = await getHistoryEntry(id);
-      updatedTabs[activeTab].scanResult = { ...placeholderData, ...data };
-      updatedTabs[activeTab].url = data.url || updatedTabs[activeTab].url;
-      updatedTabs[activeTab].isLoading = false;
-      setTabs(updatedTabs);
+      const loadedResult = { ...placeholderData, ...data };
+      setScanResult(loadedResult);
+      setUrl(data.url || "");
+      setIsLoading(false);
       if (data.url) {
-        loadComparison(data.url, activeTab);
+        loadComparison(data.url);
       }
     } catch (err) {
-      updatedTabs[activeTab].error = "Failed to load scan entry. Please try again.";
-      updatedTabs[activeTab].isLoading = false;
-      setTabs(updatedTabs);
+      setError("Failed to load scan entry. Please try again.");
+      setIsLoading(false);
     }
   };
 
-  const handleSearch = async (url, tabIndex) => {
+  const handleSearch = async () => {
     if (!url) return;
-    const updatedTabs = [...tabs];
-    updatedTabs[tabIndex].isLoading = true;
-    updatedTabs[tabIndex].error = "";
-    setTabs(updatedTabs);
+    setIsLoading(true);
+    setError("");
     try {
       const data = await scanOnion(url);
-      updatedTabs[tabIndex].scanResult = { ...placeholderData, ...data, url };
-      updatedTabs[tabIndex].url = url;
-      updatedTabs[tabIndex].isLoading = false;
-      setTabs(updatedTabs);
-      loadComparison(url, tabIndex);
+      const newScanResult = { ...placeholderData, ...data, url };
+      setScanResult(newScanResult);
+      setIsLoading(false);
+      loadComparison(url);
     } catch (err) {
-      updatedTabs[tabIndex].error = "Scan failed. Please check the URL or API availability.";
-      updatedTabs[tabIndex].isLoading = false;
-      setTabs(updatedTabs);
+      setError("Scan failed. Please check the URL or API availability.");
+      setIsLoading(false);
     }
   };
 
-  const loadComparison = async (url, tabIndex) => {
-    if (!url || !tabs[tabIndex]) return;
+  const loadComparison = async (urlToCompare) => {
+    if (!urlToCompare) return;
     try {
-      const data = await compareScans(encodeURIComponent(url));
-      const updatedTabs = [...tabs];
-      updatedTabs[tabIndex].comparison = data;
-      updatedTabs[tabIndex].compareError = "";
-      setTabs(updatedTabs);
+      const data = await compareScans(encodeURIComponent(urlToCompare));
+      setComparison(data);
+      setCompareError("");
     } catch (err) {
-      const updatedTabs = [...tabs];
-      if (!updatedTabs[tabIndex]) return;
-      updatedTabs[tabIndex].comparison = null;
-      updatedTabs[tabIndex].compareError = "Not enough scans to compare yet.";
-      setTabs(updatedTabs);
+      setComparison(null);
+      setCompareError("Not enough scans to compare yet.");
     }
   };
 
@@ -182,51 +213,42 @@ export default function Dashboard() {
     }
   };
 
-  const toggleMonitoring = async (tabIndex) => {
-    const tab = tabs[tabIndex];
-    if (!tab) return;
-
-    if (tab.isMonitoring) {
+  const toggleMonitoring = async () => {
+    if (isMonitoring) {
       try {
-        await deleteMonitor(tab.monitorId);
-        const updatedTabs = [...tabs];
-        updatedTabs[tabIndex].isMonitoring = false;
-        updatedTabs[tabIndex].monitorId = null;
-        setTabs(updatedTabs);
+        await deleteMonitor(monitorId);
+        setIsMonitoring(false);
+        setMonitorId(null);
+        alert("Monitor stopped successfully");
       } catch (err) {
         console.error("Failed to stop monitoring:", err);
+        alert("Failed to stop monitoring: " + (err.response?.data?.detail || err.message));
       }
       return;
     }
 
-    if (!tab.url) {
+    if (!url) {
       alert("Please scan a URL first");
       return;
     }
 
     try {
-      const data = await createMonitor(tab.url, 5);
-      const updatedTabs = [...tabs];
-      updatedTabs[tabIndex].isMonitoring = true;
-      updatedTabs[tabIndex].monitorId = data.monitor_id;
-      setTabs(updatedTabs);
+      const data = await createMonitor(url, 5);
+      setIsMonitoring(true);
+      setMonitorId(data.monitor_id);
+      alert("Monitor created successfully! Visit the Monitors page to view and manage all monitors.");
     } catch (err) {
       console.error("Failed to start monitoring:", err);
-      alert("Failed to start monitoring");
+      const errorMessage = err.response?.data?.detail || err.message || "Unknown error occurred";
+      alert("Failed to start monitoring: " + errorMessage);
     }
   };
 
-  const currentTab = tabs[activeTab];
-  const scanResult = currentTab?.scanResult || null;
-  const isLoading = currentTab?.isLoading || false;
-  const error = currentTab?.error || "";
-  const comparison = currentTab?.comparison || null;
-  const compareError = currentTab?.compareError || "";
   const displayData = scanResult || placeholderData;
-  const displayUrl = scanResult?.url || currentTab?.url || "";
+  const displayUrl = scanResult?.url || url || "";
 
   const headerText = scanResult
-    ? `Scan Results for ${displayUrl}`
+    ? "Scan Results"
     : "Darkweb Intelligence Console";
 
   const dataReady = !!scanResult;
@@ -287,6 +309,11 @@ export default function Dashboard() {
           )}
           <p className="text-xs uppercase tracking-[0.4em] text-neon-green">Cyber Threat Monitor</p>
           <h1 className="text-3xl font-semibold md:text-4xl">{headerText}</h1>
+          {scanResult && displayUrl && (
+            <p className="break-all text-sm text-neon-blue font-mono bg-gray-900/50 p-3 rounded-lg border border-white/10">
+              {displayUrl}
+            </p>
+          )}
           <p className="text-sm text-gray-400">
             Real-time signals, behavioral markers, and intelligence indicators for onion services.
           </p>
@@ -297,10 +324,69 @@ export default function Dashboard() {
           )}
         </header>
 
+        {/* Alert Context - Show what changed */}
+        {alertData && (
+          <div className="rounded-xl border border-neon-yellow/40 bg-neon-yellow/10 p-6">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <p className="text-sm font-semibold text-neon-yellow">Alert Context</p>
+                <p className="text-xs text-gray-400 mt-1">Details of what triggered this alert</p>
+              </div>
+              <button
+                onClick={() => window.history.back()}
+                className="text-xs text-gray-400 hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid gap-4 text-sm sm:grid-cols-2">
+              {alertData.reason && (
+                <div>
+                  <span className="text-xs uppercase tracking-wider text-gray-500">Alert Reason</span>
+                  <p className="mt-1 text-gray-300 font-medium">{alertData.reason}</p>
+                </div>
+              )}
+              {alertData.threat_score !== undefined && alertData.previous_score !== undefined && (
+                <>
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-gray-500">Previous Threat Score</span>
+                    <p className="mt-1 text-lg font-semibold text-gray-300">{alertData.previous_score}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-gray-500">Current Threat Score</span>
+                    <p className="mt-1 text-lg font-semibold text-neon-red">{alertData.threat_score}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-gray-500">Increase</span>
+                    <p className="mt-1 text-lg font-semibold text-neon-yellow">+{alertData.score_increase}</p>
+                  </div>
+                </>
+              )}
+              {alertData.severity && (
+                <div>
+                  <span className="text-xs uppercase tracking-wider text-gray-500">Severity</span>
+                  <p className="mt-1 text-gray-300">{alertData.severity}</p>
+                </div>
+              )}
+              {alertData.details && (
+                <div className="sm:col-span-2">
+                  <span className="text-xs uppercase tracking-wider text-gray-500">Details</span>
+                  <div className="mt-2 space-y-1 text-xs text-gray-300">
+                    {alertData.details.content_changed && <p>• Content has changed</p>}
+                    {alertData.details.malware_detected && <p>• Malware detected</p>}
+                    {alertData.details.new_emails > 0 && <p>• {alertData.details.new_emails} new email(s) found</p>}
+                    {alertData.details.new_crypto > 0 && <p>• {alertData.details.new_crypto} new crypto address(es) found</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Active Tabs</p>
-            <p className="text-sm text-gray-400">Monitor up to {MAX_TABS} onion sites</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">URL Scanner</p>
+            <p className="text-sm text-gray-400">Instant threat analysis for dark web sites</p>
           </div>
           <button
             onClick={() => setShowAlerts(!showAlerts)}
@@ -342,6 +428,17 @@ export default function Dashboard() {
                           <span>{formatTimestamp(alert.timestamp)}</span>
                         </div>
                       </div>
+                      <button
+                        onClick={() => {
+                          setShowAlerts(false);
+                          navigate("/?url=" + encodeURIComponent(alert.url), { 
+                            state: { alertData: alert } 
+                          });
+                        }}
+                        className="flex-shrink-0 rounded-lg border border-neon-blue/40 bg-neon-blue/10 px-3 py-2 text-xs font-medium text-neon-blue hover:bg-neon-blue/20 transition-colors"
+                      >
+                        View
+                      </button>
                     </div>
                   </div>
                 ))
@@ -350,81 +447,45 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="flex items-center gap-2 border-b border-white/10 overflow-x-auto pb-2">
-          {tabs.map((tab, index) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(index)}
-              className={`flex flex-col items-start gap-1 rounded-t-lg border-x border-t px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === index
-                  ? "border-neon-green/40 bg-gray-900 text-white"
-                  : "border-white/10 bg-white/5 text-gray-400 hover:bg-white/10"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                {`Tab ${index + 1}`}
-                {tab.isMonitoring && <span className="text-xs text-neon-green">●</span>}
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${
-                    tab.scanResult?.status === "ONLINE"
-                      ? "border-neon-green/40 text-neon-green"
-                      : tab.scanResult?.status === "OFFLINE"
-                        ? "border-neon-red/40 text-neon-red"
-                        : "border-white/10 text-gray-400"
-                  }`}
-                >
-                  {tab.scanResult?.status || "UNKNOWN"}
-                </span>
-              </span>
-              <span className="text-[10px] text-gray-500">
-                {tab.scanResult?.timestamp ? formatTimestamp(tab.scanResult.timestamp) : "Not scanned"}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {currentTab && (
-          <div className="flex flex-wrap items-center gap-4">
+        {/* URL Input and Actions */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex-1 min-w-[240px]">
             <input
               type="text"
               placeholder="http://exampleonion.onion"
-              value={currentTab.url || ""}
-              onChange={(event) => {
-                const updatedTabs = [...tabs];
-                updatedTabs[activeTab].url = event.target.value;
-                setTabs(updatedTabs);
-              }}
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleSearch(currentTab.url, activeTab);
+                if (event.key === "Enter" && url) {
+                  handleSearch();
                 }
               }}
-              className="flex-1 min-w-[240px] rounded-xl border border-white/10 bg-gray-900/60 px-4 py-3 text-base text-gray-100 outline-none transition focus:border-neon-blue/70 focus:ring-2 focus:ring-neon-blue/30"
+              className="w-full rounded-xl border border-white/10 bg-gray-900/60 px-4 py-3 text-base text-gray-100 outline-none transition focus:border-neon-blue/70 focus:ring-2 focus:ring-neon-blue/30 font-mono"
             />
-            <button
-              onClick={() => handleSearch(currentTab.url, activeTab)}
-              disabled={isLoading || !currentTab.url}
-              className="rounded-xl border border-neon-green/40 bg-neon-green/20 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neon-green transition hover:bg-neon-green/30 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isLoading ? "Scanning" : "Search"}
-            </button>
-            <button
-              onClick={() => toggleMonitoring(activeTab)}
-              disabled={!currentTab.scanResult}
-              className={`rounded-xl border px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition ${
-                currentTab.isMonitoring
-                  ? "border-neon-red/40 bg-neon-red/20 text-neon-red hover:bg-neon-red/30"
-                  : "border-neon-yellow/40 bg-neon-yellow/20 text-neon-yellow hover:bg-neon-yellow/30"
-              } disabled:cursor-not-allowed disabled:opacity-50`}
-            >
-              {currentTab.isMonitoring ? "Stop Monitor" : "Start Monitor"}
-            </button>
           </div>
-        )}
+          <button
+            onClick={handleSearch}
+            disabled={isLoading || !url}
+            className="rounded-xl border border-neon-green/40 bg-neon-green/20 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neon-green transition hover:bg-neon-green/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLoading ? "Scanning" : "Search"}
+          </button>
+          <button
+            onClick={toggleMonitoring}
+            disabled={!scanResult}
+            className={`rounded-xl border px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition ${
+              isMonitoring
+                ? "border-neon-red/40 bg-neon-red/20 text-neon-red hover:bg-neon-red/30"
+                : "border-neon-yellow/40 bg-neon-yellow/20 text-neon-yellow hover:bg-neon-yellow/30"
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {isMonitoring ? "Stop Monitor" : "Start Monitor"}
+          </button>
+        </div>
 
         {isLoading && (
           <div className="flex min-h-[50vh] items-center justify-center">
-            <Loader label="Scanning" />
+            <ScanProgress />
           </div>
         )}
 
@@ -471,7 +532,9 @@ export default function Dashboard() {
               </div>
 
               <div className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
-                <p className="text-sm font-semibold">Previous Scan</p>
+                <p className="text-sm font-semibold">
+                  {comparison ? "Previous Scan" : "Baseline Scan"}
+                </p>
                 {comparison ? (
                   <div className="mt-4 space-y-3 text-sm text-gray-300">
                     <div className="flex items-center justify-between">
@@ -495,8 +558,34 @@ export default function Dashboard() {
                       <span className="text-gray-200">{comparison.previous?.crypto ?? 0}</span>
                     </div>
                   </div>
+                ) : scanResult ? (
+                  <div className="mt-4 space-y-3 text-sm text-gray-300">
+                    <div className="rounded-lg border border-neon-yellow/30 bg-neon-yellow/10 p-3 mb-4">
+                      <p className="text-xs text-neon-yellow">First scan recorded - this is your baseline</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Threat Score</span>
+                      <span className="text-gray-200">{displayData.threatScore ?? "-"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Risk Level</span>
+                      <span className="text-gray-200">{displayData.riskLevel ?? "-"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Status</span>
+                      <span className="text-gray-200">{displayData.status ?? "-"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Emails Found</span>
+                      <span className="text-gray-200">{displayData.emails?.length ?? 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Crypto Addresses</span>
+                      <span className="text-gray-200">{displayData.cryptoAddresses?.length ?? 0}</span>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="mt-4 text-sm text-gray-500">{compareError || "Waiting for previous scan data."}</p>
+                  <p className="mt-4 text-sm text-gray-500">Scan a URL to establish a baseline for comparison.</p>
                 )}
               </div>
             </section>
@@ -813,8 +902,8 @@ export default function Dashboard() {
                   <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Detected File Links</p>
                   <ul className="mt-3 space-y-2 text-sm text-gray-300">
                     {fileLinks.length ? (
-                      fileLinks.map((fileLink) => (
-                        <li key={fileLink.url || fileLink.text} className="break-words">
+                      fileLinks.map((fileLink, idx) => (
+                        <li key={`file-link-${idx}`} className="break-words">
                           <span className="text-gray-500">{fileLink.extension || "file"}: </span>
                           <span className="text-gray-200">{fileLink.url}</span>
                         </li>
@@ -869,8 +958,8 @@ export default function Dashboard() {
                 <p className="mt-2 text-xs text-gray-400">Showing up to {links.length} links</p>
                 <ul className="mt-4 space-y-2 text-sm text-gray-300">
                   {links.length ? (
-                    links.map((link) => (
-                      <li key={link.url} className="break-words">
+                    links.map((link, idx) => (
+                      <li key={`link-${idx}`} className="break-words">
                         <span className="text-gray-500">{link.text || "Link"}: </span>
                         <span className="text-gray-200">{link.url}</span>
                       </li>

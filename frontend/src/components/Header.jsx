@@ -1,9 +1,52 @@
 import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import axios from "axios";
 
 export default function Header() {
   const location = useLocation();
-  const isHistory = location.pathname === "/history";
   const isDashboard = location.pathname === "/" || location.pathname.startsWith("/entry/");
+  const isHistory = location.pathname === "/history";
+  const isMonitors = location.pathname === "/monitors";
+  const isAlerts = location.pathname === "/alerts";
+  const isAnalytics = location.pathname === "/analytics";
+
+  const [systemHealth, setSystemHealth] = useState(null);
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
+
+  useEffect(() => {
+    checkSystemHealth();
+    loadAlerts();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(() => {
+      checkSystemHealth();
+      loadAlerts();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkSystemHealth = async () => {
+    try {
+      const baseURL = import.meta.env.VITE_API_BASE_URL || "";
+      await axios.get(`${baseURL}/health`, { timeout: 5000 });
+      setSystemHealth("ok");
+    } catch (err) {
+      setSystemHealth("error");
+    }
+  };
+
+  const loadAlerts = async () => {
+    try {
+      const baseURL = import.meta.env.VITE_API_BASE_URL || "";
+      const response = await axios.get(`${baseURL}/alerts`);
+      const alerts = response.data.alerts || [];
+      const unread = alerts.filter(a => a.status !== "acknowledged").length;
+      setUnreadAlerts(unread);
+    } catch (err) {
+      // Silently fail
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-gray-950/80 backdrop-blur-sm">
@@ -14,16 +57,24 @@ export default function Header() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <div>
+          <div className="hidden sm:block">
             <h1 className="text-lg font-semibold">Darkweb Monitor</h1>
             <p className="text-xs text-gray-500">Threat Intelligence Platform</p>
           </div>
         </Link>
 
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-2 sm:gap-4">
+          {/* System Health Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5">
+            <span className={`h-2 w-2 rounded-full ${systemHealth === "ok" ? "bg-neon-green animate-pulse" : "bg-neon-red"}`}></span>
+            <span className="text-xs text-gray-400 hidden sm:inline">
+              {systemHealth === "ok" ? "Online" : "Offline"}
+            </span>
+          </div>
+
           <Link
             to="/"
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-lg px-3 sm:px-4 py-2 text-sm font-medium transition-colors ${
               isDashboard
                 ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
                 : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
@@ -32,14 +83,49 @@ export default function Header() {
             Dashboard
           </Link>
           <Link
+            to="/monitors"
+            className={`rounded-lg px-3 sm:px-4 py-2 text-sm font-medium transition-colors ${
+              isMonitors
+                ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
+                : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+            }`}
+          >
+            Monitors
+          </Link>
+          <Link
             to="/history"
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`rounded-lg px-3 sm:px-4 py-2 text-sm font-medium transition-colors ${
               isHistory
                 ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
                 : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
             }`}
           >
             History
+          </Link>
+          <Link
+            to="/alerts"
+            className={`relative rounded-lg px-3 sm:px-4 py-2 text-sm font-medium transition-colors ${
+              isAlerts
+                ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
+                : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+            }`}
+          >
+            Alerts
+            {unreadAlerts > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-neon-red text-[10px] font-bold text-white">
+                {unreadAlerts > 9 ? "9+" : unreadAlerts}
+              </span>
+            )}
+          </Link>
+          <Link
+            to="/analytics"
+            className={`rounded-lg px-3 sm:px-4 py-2 text-sm font-medium transition-colors ${
+              isAnalytics
+                ? "bg-neon-green/10 text-neon-green border border-neon-green/30"
+                : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+            }`}
+          >
+            Analytics
           </Link>
         </nav>
       </div>

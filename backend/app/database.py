@@ -18,6 +18,7 @@ class DatabaseManager:
         self.collection = None
         self.alerts = None
         self.iocs = None
+        self.monitors = None
         self.connect()
 
     def connect(self):
@@ -38,6 +39,7 @@ class DatabaseManager:
             self.collection = self.db[COLLECTION_NAME]
             self.alerts = self.db["alerts"]  # Alert collection for threat notifications
             self.iocs = self.db["iocs"]      # IOC collection for indicators tracking
+            self.monitors = self.db["monitors"]  # Monitors collection for active monitoring jobs
 
             logger.info("Successfully connected to MongoDB Atlas")
             return True
@@ -303,6 +305,167 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error inserting IOC: {e}")
             return None
+
+    def save_monitor(self, monitor_id: str, url: str, interval: int, status: str = "active"):
+        """
+        Save or update a monitor in the database
+        
+        Args:
+            monitor_id: Unique identifier for the monitor
+            url: URL being monitored
+            interval: Scan interval in minutes
+            status: Monitor status ("active", "paused", "inactive")
+        
+        Returns:
+            bool: Success status
+        """
+        if self.monitors is None:
+            logger.error("Monitors collection not connected")
+            return False
+        
+        try:
+            self.monitors.update_one(
+                {"monitor_id": monitor_id},
+                {
+                    "$set": {
+                        "monitor_id": monitor_id,
+                        "url": url,
+                        "interval": interval,
+                        "status": status,
+                        "updated_at": get_timestamp()
+                    },
+                    "$setOnInsert": {
+                        "created_at": get_timestamp(),
+                        "scan_count": 0,
+                        "last_scan": None
+                    }
+                },
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error saving monitor: {e}")
+            return False
+
+    def get_active_monitors(self):
+        """
+        Get all active monitors from the database
+        
+        Returns:
+            list: List of active monitor documents
+        """
+        if self.monitors is None:
+            logger.error("Monitors collection not connected")
+            return []
+        
+        try:
+            monitors = list(self.monitors.find({"status": "active"}))
+            return monitors
+        except Exception as e:
+            logger.error(f"Error fetching active monitors: {e}")
+            return []
+
+    def update_monitor_status(self, monitor_id: str, status: str):
+        """
+        Update monitor status
+        
+        Args:
+            monitor_id: Monitor identifier
+            status: New status ("active", "paused", "inactive")
+        
+        Returns:
+            bool: Success status
+        """
+        if self.monitors is None:
+            logger.error("Monitors collection not connected")
+            return False
+        
+        try:
+            result = self.monitors.update_one(
+                {"monitor_id": monitor_id},
+                {"$set": {"status": status, "updated_at": get_timestamp()}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error updating monitor status: {e}")
+            return False
+
+    def update_monitor_scan_info(self, monitor_id: str, last_scan: str, scan_count: int):
+        """
+        Update monitor scan information
+        
+        Args:
+            monitor_id: Monitor identifier
+            last_scan: Timestamp of last scan
+            scan_count: Total number of scans
+        
+        Returns:
+            bool: Success status
+        """
+        if self.monitors is None:
+            logger.error("Monitors collection not connected")
+            return False
+        
+        try:
+            self.monitors.update_one(
+                {"monitor_id": monitor_id},
+                {
+                    "$set": {
+                        "last_scan": last_scan,
+                        "scan_count": scan_count,
+                        "updated_at": get_timestamp()
+                    }
+                }
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error updating monitor scan info: {e}")
+            return False
+
+    def delete_monitor(self, monitor_id: str):
+        """
+        Delete a monitor from the database (set status to inactive)
+        
+        Args:
+            monitor_id: Monitor identifier
+        
+        Returns:
+            bool: Success status
+        """
+        if self.monitors is None:
+            logger.error("Monitors collection not connected")
+            return False
+        
+        try:
+            result = self.monitors.update_one(
+                {"monitor_id": monitor_id},
+                {"$set": {"status": "inactive", "updated_at": get_timestamp()}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error deleting monitor: {e}")
+            return False
+
+    def delete_all_monitors(self):
+        """
+        Delete all monitors (set all to inactive)
+        
+        Returns:
+            bool: Success status
+        """
+        if self.monitors is None:
+            logger.error("Monitors collection not connected")
+            return False
+        
+        try:
+            self.monitors.update_many(
+                {},
+                {"$set": {"status": "inactive", "updated_at": get_timestamp()}}
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting all monitors: {e}")
+            return False
 
     def close(self):
         """Close database connection"""

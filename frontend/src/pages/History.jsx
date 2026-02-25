@@ -120,9 +120,9 @@ export default function History() {
                     </p>
 
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>📅 {formatTimestamp(entry.timestamp)}</span>
+                      <span>{formatTimestamp(entry.timestamp)}</span>
                       <span>•</span>
-                      <span>📂 {entry.category}</span>
+                      <span>{entry.category}</span>
                     </div>
                   </div>
 

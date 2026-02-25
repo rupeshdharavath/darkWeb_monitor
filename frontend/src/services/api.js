@@ -43,6 +43,11 @@ export async function deleteMonitor(monitorId) {
   return response.data;
 }
 
+export async function deleteAllMonitors() {
+  const response = await api.delete("/monitors/all");
+  return response.data;
+}
+
 export async function pauseMonitor(monitorId) {
   const response = await api.post(`/monitors/${monitorId}/pause`);
   return response.data;
