@@ -19,6 +19,8 @@ export default function History() {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchURL, setSearchURL] = useState("");
+  const [riskFilter, setRiskFilter] = useState("ALL"); // ALL, HIGH, MEDIUM, LOW
 
   useEffect(() => {
     loadHistory();
@@ -57,6 +59,17 @@ export default function History() {
     if (score >= 40) return "text-neon-yellow";
     return "text-neon-green";
   };
+
+  // Filter history based on search URL and risk level
+  const filteredHistory = history.filter((entry) => {
+    // Filter by URL search
+    const urlMatch = entry.url.toLowerCase().includes(searchURL.toLowerCase());
+    
+    // Filter by risk level
+    const riskMatch = riskFilter === "ALL" || entry.risk_level === riskFilter;
+    
+    return urlMatch && riskMatch;
+  });
 
   return (
     <div className="min-h-screen px-6 py-12 lg:px-16">
@@ -97,50 +110,112 @@ export default function History() {
         )}
 
         {!isLoading && !error && history.length > 0 && (
-          <div className="space-y-4">
-            {history.map((entry) => (
-              <Link
-                key={entry.id}
-                to={`/entry/${entry.id}`}
-                className="block rounded-lg border border-white/10 bg-white/5 p-6 transition-all hover:border-neon-green/40 hover:bg-white/10"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-medium text-white line-clamp-1">
-                        {entry.title}
-                      </h3>
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[entry.url_status] || statusStyles.UNKNOWN}`}>
-                        {entry.url_status}
-                      </span>
-                    </div>
-                    
-                    <p className="text-sm text-gray-400 font-mono line-clamp-1">
-                      {entry.url}
-                    </p>
+          <div className="space-y-6">
+            {/* Search and Filter Section */}
+            <div className="space-y-4 rounded-lg border border-white/10 bg-white/5 p-6">
+              {/* Search Box */}
+              <div>
+                <label className="text-xs uppercase tracking-[0.3em] text-gray-400 block mb-2">
+                  Search by URL
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter URL to search..."
+                  value={searchURL}
+                  onChange={(e) => setSearchURL(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-white placeholder-gray-500 outline-none transition-all focus:border-neon-green/40 focus:bg-white/10"
+                />
+              </div>
 
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>{formatTimestamp(entry.timestamp)}</span>
-                      <span>•</span>
-                      <span>{entry.category}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400">Threat Score:</span>
-                      <span className={`text-2xl font-bold ${getThreatScoreColor(entry.threat_score)}`}>
-                        {entry.threat_score}
-                      </span>
-                    </div>
-                    
-                    <span className={`inline-flex rounded-lg border px-3 py-1 text-xs font-medium ${riskStyles[entry.risk_level] || riskStyles.LOW}`}>
-                      {entry.risk_level} RISK
-                    </span>
-                  </div>
+              {/* Risk Level Filter */}
+              <div>
+                <label className="text-xs uppercase tracking-[0.3em] text-gray-400 block mb-3">
+                  Filter by Risk Level
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {["ALL", "HIGH", "MEDIUM", "LOW"].map((risk) => (
+                    <button
+                      key={risk}
+                      onClick={() => setRiskFilter(risk)}
+                      className={`rounded-lg px-4 py-2 text-xs font-medium transition-all border ${
+                        riskFilter === risk
+                          ? risk === "HIGH"
+                            ? "bg-neon-red/20 border-neon-red text-neon-red"
+                            : risk === "MEDIUM"
+                            ? "bg-neon-yellow/20 border-neon-yellow text-neon-yellow"
+                            : risk === "LOW"
+                            ? "bg-neon-green/20 border-neon-green text-neon-green"
+                            : "bg-white/10 border-white/20 text-white"
+                          : "border-white/10 bg-white/5 text-gray-400 hover:border-white/30"
+                      }`}
+                    >
+                      {risk === "ALL" ? "All Risks" : `${risk} Risk`}
+                    </button>
+                  ))}
                 </div>
-              </Link>
-            ))}
+              </div>
+
+              {/* Results Count */}
+              <div className="pt-2 text-sm text-gray-400">
+                Showing {filteredHistory.length} of {history.length} scans
+              </div>
+            </div>
+
+            {/* History List */}
+            {filteredHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <svg className="h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <p className="text-gray-500">No scans match your search criteria.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredHistory.map((entry) => (
+                  <Link
+                    key={entry.id}
+                    to={`/entry/${entry.id}`}
+                    className="block rounded-lg border border-white/10 bg-white/5 p-6 transition-all hover:border-neon-green/40 hover:bg-white/10"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-lg font-medium text-white line-clamp-1">
+                            {entry.title}
+                          </h3>
+                          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[entry.url_status] || statusStyles.UNKNOWN}`}>
+                            {entry.url_status}
+                          </span>
+                        </div>
+                        
+                        <p className="text-sm text-gray-400 font-mono line-clamp-1">
+                          {entry.url}
+                        </p>
+
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span>{formatTimestamp(entry.timestamp)}</span>
+                          <span>•</span>
+                          <span>{entry.category}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-400">Threat Score:</span>
+                          <span className={`text-2xl font-bold ${getThreatScoreColor(entry.threat_score)}`}>
+                            {entry.threat_score}
+                          </span>
+                        </div>
+                        
+                        <span className={`inline-flex rounded-lg border px-3 py-1 text-xs font-medium ${riskStyles[entry.risk_level] || riskStyles.LOW}`}>
+                          {entry.risk_level} RISK
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
