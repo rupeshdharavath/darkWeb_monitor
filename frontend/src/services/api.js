@@ -70,7 +70,7 @@ export async function acknowledgeAlert(alertId) {
 }
 
 // Comparison
-export async function compareScans(urlHash, limit = 2) {
-  const response = await api.get(`/compare/${urlHash}`, { params: { limit } });
+export async function compareScans(url, limit = 2) {
+  const response = await api.get("/compare", { params: { url, limit } });
   return response.data;
 }

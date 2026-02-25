@@ -7,6 +7,7 @@ import ThreatBarChart from "../components/ThreatBarChart.jsx";
 import TimelineChart from "../components/TimelineChart.jsx";
 import Loader from "../components/Loader.jsx";
 import ScanProgress from "../components/ScanProgress.jsx";
+import { useToast } from "../hooks/useToast.jsx";
 import {
   scanOnion,
   getHistoryEntry,
@@ -75,6 +76,7 @@ export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const queryUrl = searchParams.get("url");
   const { alertData = null } = location.state || {};
+  const { showToast, ToastContainer } = useToast();
   const [url, setUrl] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -85,6 +87,30 @@ export default function Dashboard() {
   const [compareError, setCompareError] = useState("");
   const [alerts, setAlerts] = useState([]);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [isTogglingMonitor, setIsTogglingMonitor] = useState(false);
+
+  // Load persisted state from localStorage on mount
+  useEffect(() => {
+    if (!entryId && !queryUrl) {
+      try {
+        const savedState = localStorage.getItem('dashboardState');
+        if (savedState) {
+          const { url: savedUrl, scanResult: savedResult, monitorId: savedMonitorId } = JSON.parse(savedState);
+          if (savedUrl) setUrl(savedUrl);
+          if (savedResult) {
+            setScanResult(savedResult);
+            loadComparison(savedUrl);
+          }
+          if (savedMonitorId) {
+            setMonitorId(savedMonitorId);
+            verifyMonitor(savedMonitorId);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load saved dashboard state:', err);
+      }
+    }
+  }, []);
 
   // Load URL from query parameter on mount
   useEffect(() => {
@@ -111,6 +137,12 @@ export default function Dashboard() {
       setScanResult(newScanResult);
       setUrl(urlToSearch.trim());
       loadComparison(urlToSearch.trim());
+      // Save to localStorage
+      localStorage.setItem('dashboardState', JSON.stringify({
+        url: urlToSearch.trim(),
+        scanResult: newScanResult,
+        monitorId
+      }));
     } catch (err) {
       setError(err.response?.data?.detail || err.message || "Scan failed");
       setScanResult(null);
@@ -169,6 +201,12 @@ export default function Dashboard() {
       if (data.url) {
         loadComparison(data.url);
       }
+      // Save to localStorage
+      localStorage.setItem('dashboardState', JSON.stringify({
+        url: data.url,
+        scanResult: loadedResult,
+        monitorId
+      }));
     } catch (err) {
       setError("Failed to load scan entry. Please try again.");
       setIsLoading(false);
@@ -185,6 +223,12 @@ export default function Dashboard() {
       setScanResult(newScanResult);
       setIsLoading(false);
       loadComparison(url);
+      // Save to localStorage
+      localStorage.setItem('dashboardState', JSON.stringify({
+        url,
+        scanResult: newScanResult,
+        monitorId
+      }));
     } catch (err) {
       setError("Scan failed. Please check the URL or API availability.");
       setIsLoading(false);
@@ -194,7 +238,7 @@ export default function Dashboard() {
   const loadComparison = async (urlToCompare) => {
     if (!urlToCompare) return;
     try {
-      const data = await compareScans(encodeURIComponent(urlToCompare));
+      const data = await compareScans(urlToCompare);
       setComparison(data);
       setCompareError("");
     } catch (err) {
@@ -215,32 +259,50 @@ export default function Dashboard() {
 
   const toggleMonitoring = async () => {
     if (isMonitoring) {
+      setIsTogglingMonitor(true);
       try {
         await deleteMonitor(monitorId);
         setIsMonitoring(false);
         setMonitorId(null);
-        alert("Monitor stopped successfully");
+        // Update localStorage
+        localStorage.setItem('dashboardState', JSON.stringify({
+          url,
+          scanResult,
+          monitorId: null
+        }));
+        showToast("Monitor stopped successfully", "success");
       } catch (err) {
         console.error("Failed to stop monitoring:", err);
-        alert("Failed to stop monitoring: " + (err.response?.data?.detail || err.message));
+        showToast("Failed to stop monitoring: " + (err.response?.data?.detail || err.message), "error");
+      } finally {
+        setIsTogglingMonitor(false);
       }
       return;
     }
 
     if (!url) {
-      alert("Please scan a URL first");
+      showToast("Please scan a URL first", "warning");
       return;
     }
 
+    setIsTogglingMonitor(true);
     try {
       const data = await createMonitor(url, 5);
       setIsMonitoring(true);
       setMonitorId(data.monitor_id);
-      alert("Monitor created successfully! Visit the Monitors page to view and manage all monitors.");
+      // Update localStorage
+      localStorage.setItem('dashboardState', JSON.stringify({
+        url,
+        scanResult,
+        monitorId: data.monitor_id
+      }));
+      showToast("Monitor created successfully! Visit the Monitors page to view and manage all monitors.", "success", 5000);
     } catch (err) {
       console.error("Failed to start monitoring:", err);
       const errorMessage = err.response?.data?.detail || err.message || "Unknown error occurred";
-      alert("Failed to start monitoring: " + errorMessage);
+      showToast("Failed to start monitoring: " + errorMessage, "error");
+    } finally {
+      setIsTogglingMonitor(false);
     }
   };
 
@@ -472,14 +534,20 @@ export default function Dashboard() {
           </button>
           <button
             onClick={toggleMonitoring}
-            disabled={!scanResult}
-            className={`rounded-xl border px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition ${
+            disabled={!scanResult || isTogglingMonitor}
+            className={`rounded-xl border px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] transition flex items-center gap-2 ${
               isMonitoring
                 ? "border-neon-red/40 bg-neon-red/20 text-neon-red hover:bg-neon-red/30"
                 : "border-neon-yellow/40 bg-neon-yellow/20 text-neon-yellow hover:bg-neon-yellow/30"
             } disabled:cursor-not-allowed disabled:opacity-50`}
           >
-            {isMonitoring ? "Stop Monitor" : "Start Monitor"}
+            {isTogglingMonitor && (
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            <span>{isTogglingMonitor ? (isMonitoring ? "Stopping..." : "Starting...") : (isMonitoring ? "Stop Monitor" : "Start Monitor")}</span>
           </button>
         </div>
 
@@ -532,9 +600,7 @@ export default function Dashboard() {
               </div>
 
               <div className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
-                <p className="text-sm font-semibold">
-                  {comparison ? "Previous Scan" : "Baseline Scan"}
-                </p>
+                <p className="text-sm font-semibold">Baseline Scan</p>
                 {comparison ? (
                   <div className="mt-4 space-y-3 text-sm text-gray-300">
                     <div className="flex items-center justify-between">
@@ -558,73 +624,67 @@ export default function Dashboard() {
                       <span className="text-gray-200">{comparison.previous?.crypto ?? 0}</span>
                     </div>
                   </div>
-                ) : scanResult ? (
-                  <div className="mt-4 space-y-3 text-sm text-gray-300">
-                    <div className="rounded-lg border border-neon-yellow/30 bg-neon-yellow/10 p-3 mb-4">
-                      <p className="text-xs text-neon-yellow">First scan recorded - this is your baseline</p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Threat Score</span>
-                      <span className="text-gray-200">{displayData.threatScore ?? "-"}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Risk Level</span>
-                      <span className="text-gray-200">{displayData.riskLevel ?? "-"}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Status</span>
-                      <span className="text-gray-200">{displayData.status ?? "-"}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Emails Found</span>
-                      <span className="text-gray-200">{displayData.emails?.length ?? 0}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Crypto Addresses</span>
-                      <span className="text-gray-200">{displayData.cryptoAddresses?.length ?? 0}</span>
-                    </div>
-                  </div>
                 ) : (
-                  <p className="mt-4 text-sm text-gray-500">Scan a URL to establish a baseline for comparison.</p>
+                  <p className="mt-4 text-sm text-gray-500">Perform another scan to compare with this baseline.</p>
                 )}
               </div>
             </section>
 
             {comparison && (
               <section className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
-                <p className="text-sm font-semibold">Changes Detected</p>
-                <div className="mt-4 grid gap-4 text-sm text-gray-300 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="flex items-center justify-between">
-                    <span>Threat Score Δ</span>
-                    <span className={comparison.changes?.threat_score_delta > 0 ? "text-neon-red" : "text-gray-200"}>
-                      {comparison.changes?.threat_score_delta ?? 0}
-                    </span>
+                <p className="text-sm font-semibold mb-4">Changes Since Baseline</p>
+                
+                <div className="mb-4 flex items-center justify-between rounded-lg border border-neon-yellow/30 bg-neon-yellow/10 p-3">
+                  <span className="text-sm text-neon-yellow">Threat Score Change</span>
+                  <span className={`text-lg font-semibold ${
+                    comparison.changes?.threat_score_delta > 0 
+                      ? "text-neon-red" 
+                      : comparison.changes?.threat_score_delta < 0 
+                      ? "text-neon-green" 
+                      : "text-gray-300"
+                  }`}>
+                    {comparison.changes?.threat_score_delta > 0 ? "+" : ""}{comparison.changes?.threat_score_delta ?? 0}
+                  </span>
+                </div>
+
+                {comparison.reasons && comparison.reasons.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Reasons for Change</p>
+                    {comparison.reasons.map((reason, idx) => (
+                      <div key={idx} className="flex items-start gap-3 rounded-lg border border-white/5 bg-gray-800/30 p-3">
+                        <span className="text-lg flex-shrink-0">{reason.charAt(0)}</span>
+                        <p className="text-sm text-gray-300">{reason.substring(2)}</p>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>Risk Level Change</span>
-                    <span className="text-gray-200">
-                      {comparison.changes?.risk_level_changed ? "Yes" : "No"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Status Change</span>
-                    <span className="text-gray-200">
-                      {comparison.changes?.status_changed ? "Yes" : "No"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Category Change</span>
-                    <span className="text-gray-200">
-                      {comparison.changes?.category_changed ? "Yes" : "No"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
+                ) : (
+                  <p className="text-sm text-gray-500">No significant changes detected.</p>
+                )}
+
+                <div className="mt-6 grid gap-3 text-sm text-gray-300 sm:grid-cols-2">
+                  <div className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-800/30 p-3">
                     <span>New Emails</span>
-                    <span className="text-gray-200">{comparison.changes?.new_emails ?? 0}</span>
+                    <span className={comparison.changes?.new_emails > 0 ? "text-neon-red font-semibold" : "text-gray-200"}>
+                      {comparison.changes?.new_emails > 0 ? "+" : ""}{comparison.changes?.new_emails ?? 0}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>New Crypto</span>
-                    <span className="text-gray-200">{comparison.changes?.new_crypto ?? 0}</span>
+                  <div className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-800/30 p-3">
+                    <span>New Crypto Addresses</span>
+                    <span className={comparison.changes?.new_crypto > 0 ? "text-neon-red font-semibold" : "text-gray-200"}>
+                      {comparison.changes?.new_crypto > 0 ? "+" : ""}{comparison.changes?.new_crypto ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-800/30 p-3">
+                    <span>Risk Level Changed</span>
+                    <span className="text-gray-200">
+                      {comparison.changes?.risk_level_changed ? "✓ Yes" : "✗ No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-800/30 p-3">
+                    <span>Status Changed</span>
+                    <span className="text-gray-200">
+                      {comparison.changes?.status_changed ? "✓ Yes" : "✗ No"}
+                    </span>
                   </div>
                 </div>
               </section>
@@ -979,6 +1039,7 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+      <ToastContainer />
     </div>
   );
 }

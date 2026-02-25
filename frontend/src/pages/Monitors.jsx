@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listMonitors, deleteMonitor, deleteAllMonitors, pauseMonitor, resumeMonitor, createMonitor } from "../services/api.js";
 import Loader from "../components/Loader.jsx";
+import { useToast } from "../hooks/useToast.jsx";
 
 export default function Monitors() {
   const navigate = useNavigate();
+  const { showToast, ToastContainer } = useToast();
   const [monitors, setMonitors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -14,6 +16,8 @@ export default function Monitors() {
   const [newMonitorInterval, setNewMonitorInterval] = useState(5);
   const [creating, setCreating] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [loadingStates, setLoadingStates] = useState({}); // Track loading for each button
+  const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     loadMonitors(true);
@@ -55,7 +59,7 @@ export default function Monitors() {
 
     // Check if max monitors limit reached (5)
     if (monitors.length >= 5) {
-      alert("Maximum 5 monitors allowed. Please delete an existing monitor to add a new one.");
+      showToast("Maximum 5 monitors allowed. Please delete an existing monitor to add a new one.", "warning");
       return;
     }
 
@@ -65,11 +69,11 @@ export default function Monitors() {
       setNewMonitorUrl("");
       setNewMonitorInterval(5);
       setShowCreateForm(false);
-      alert("Monitor created successfully!");
+      showToast("Monitor created successfully!", "success");
       loadMonitors(false); // Refresh monitor list with animation
     } catch (err) {
       const errorMessage = err.response?.data?.detail || err.message || "Unknown error occurred";
-      alert("Failed to create monitor: " + errorMessage);
+      showToast("Failed to create monitor: " + errorMessage, "error");
       console.error("Monitor creation error:", err);
     } finally {
       setCreating(false);
@@ -77,43 +81,58 @@ export default function Monitors() {
   };
 
   const handlePause = async (monitorId) => {
+    setLoadingStates(prev => ({ ...prev, [`pause_${monitorId}`]: true }));
     try {
       await pauseMonitor(monitorId);
+      showToast("Monitor paused successfully", "success");
       loadMonitors(false); // Refresh monitor list with animation
     } catch (err) {
-      alert("Failed to pause monitor: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to pause monitor: " + (err.response?.data?.detail || err.message), "error");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, [`pause_${monitorId}`]: false }));
     }
   };
 
   const handleResume = async (monitorId) => {
+    setLoadingStates(prev => ({ ...prev, [`resume_${monitorId}`]: true }));
     try {
       await resumeMonitor(monitorId);
+      showToast("Monitor resumed successfully", "success");
       loadMonitors(false); // Refresh monitor list with animation
     } catch (err) {
-      alert("Failed to resume monitor: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to resume monitor: " + (err.response?.data?.detail || err.message), "error");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, [`resume_${monitorId}`]: false }));
     }
   };
 
   const handleDelete = async (monitorId) => {
     if (!confirm("Are you sure you want to delete this monitor?")) return;
     
+    setLoadingStates(prev => ({ ...prev, [`delete_${monitorId}`]: true }));
     try {
       await deleteMonitor(monitorId);
+      showToast("Monitor deleted successfully", "success");
       loadMonitors(false); // Refresh monitor list with animation
     } catch (err) {
-      alert("Failed to delete monitor: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to delete monitor: " + (err.response?.data?.detail || err.message), "error");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, [`delete_${monitorId}`]: false }));
     }
   };
 
   const handleDeleteAll = async () => {
     if (!confirm(`Are you sure you want to delete all ${monitors.length} monitors? This action cannot be undone.`)) return;
     
+    setDeletingAll(true);
     try {
       await deleteAllMonitors();
-      alert("All monitors deleted successfully");
+      showToast("All monitors deleted successfully", "success");
       loadMonitors(false); // Refresh monitor list with animation
     } catch (err) {
-      alert("Failed to delete all monitors: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to delete all monitors: " + (err.response?.data?.detail || err.message), "error");
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -180,9 +199,16 @@ export default function Monitors() {
               {monitors.length > 0 && (
                 <button
                   onClick={handleDeleteAll}
-                  className="rounded-lg border border-neon-red/40 bg-neon-red/10 px-4 py-2 text-sm font-medium text-neon-red hover:bg-neon-red/20 transition-colors"
+                  disabled={deletingAll}
+                  className="rounded-lg border border-neon-red/40 bg-neon-red/10 px-4 py-2 text-sm font-medium text-neon-red hover:bg-neon-red/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Delete All
+                  {deletingAll && (
+                    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  <span>{deletingAll ? "Deleting..." : "Delete All"}</span>
                 </button>
               )}
               <button
@@ -240,9 +266,15 @@ export default function Monitors() {
                 <button
                   type="submit"
                   disabled={creating || !newMonitorUrl.trim()}
-                  className="rounded-lg border border-neon-green/40 bg-neon-green/20 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neon-green transition hover:bg-neon-green/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-neon-green/40 bg-neon-green/20 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neon-green transition hover:bg-neon-green/30 disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2"
                 >
-                  {creating ? "Creating..." : "Create Monitor"}
+                  {creating && (
+                    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  <span>{creating ? "Creating..." : "Create Monitor"}</span>
                 </button>
                 <button
                   type="button"
@@ -412,23 +444,44 @@ export default function Monitors() {
                       {isActive ? (
                         <button
                           onClick={() => handlePause(monitor.monitor_id)}
-                          className="flex-1 rounded-lg border border-neon-yellow/40 bg-neon-yellow/10 px-4 py-2 text-sm font-medium text-neon-yellow hover:bg-neon-yellow/20 transition-colors"
+                          disabled={loadingStates[`pause_${monitor.monitor_id}`]}
+                          className="flex-1 rounded-lg border border-neon-yellow/40 bg-neon-yellow/10 px-4 py-2 text-sm font-medium text-neon-yellow hover:bg-neon-yellow/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                          Pause
+                          {loadingStates[`pause_${monitor.monitor_id}`] && (
+                            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          )}
+                          <span>{loadingStates[`pause_${monitor.monitor_id}`] ? "Pausing..." : "Pause"}</span>
                         </button>
                       ) : (
                         <button
                           onClick={() => handleResume(monitor.monitor_id)}
-                          className="flex-1 rounded-lg border border-neon-green/40 bg-neon-green/10 px-4 py-2 text-sm font-medium text-neon-green hover:bg-neon-green/20 transition-colors"
+                          disabled={loadingStates[`resume_${monitor.monitor_id}`]}
+                          className="flex-1 rounded-lg border border-neon-green/40 bg-neon-green/10 px-4 py-2 text-sm font-medium text-neon-green hover:bg-neon-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                          Resume
+                          {loadingStates[`resume_${monitor.monitor_id}`] && (
+                            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          )}
+                          <span>{loadingStates[`resume_${monitor.monitor_id}`] ? "Resuming..." : "Resume"}</span>
                         </button>
                       )}
                       <button
                         onClick={() => handleDelete(monitor.monitor_id)}
-                        className="flex-1 rounded-lg border border-neon-red/40 bg-neon-red/10 px-4 py-2 text-sm font-medium text-neon-red hover:bg-neon-red/20 transition-colors"
+                        disabled={loadingStates[`delete_${monitor.monitor_id}`]}
+                        className="flex-1 rounded-lg border border-neon-red/40 bg-neon-red/10 px-4 py-2 text-sm font-medium text-neon-red hover:bg-neon-red/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
-                        Delete
+                        {loadingStates[`delete_${monitor.monitor_id}`] && (
+                          <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        )}
+                        <span>{loadingStates[`delete_${monitor.monitor_id}`] ? "Deleting..." : "Delete"}</span>
                       </button>
                     </div>
                   </div>
@@ -438,6 +491,7 @@ export default function Monitors() {
           </div>
         )}
       </div>
+      <ToastContainer />
     </div>
   );
 }

@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getHistory } from "../services/api.js";
 import Loader from "../components/Loader.jsx";
 import CategoryPieChart from "../components/CategoryPieChart.jsx";
 
 export default function Analytics() {
+  const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
   useEffect(() => {
     loadHistory(true); // Initial load with loading state
@@ -86,6 +90,25 @@ export default function Analytics() {
   const topThreats = [...history]
     .sort((a, b) => (b.threat_score || 0) - (a.threat_score || 0))
     .slice(0, 10);
+
+  // Get URLs for selected category
+  const categoryUrls = selectedCategory
+    ? history.filter(h => (h.category || "Unknown") === selectedCategory)
+    : [];
+
+  const handleCategoryClick = (categoryName) => {
+    setSelectedCategory(categoryName);
+    setShowCategoryModal(true);
+  };
+
+  const handleThreatClick = (url) => {
+    navigate(`/?url=${encodeURIComponent(url)}`);
+  };
+
+  const handleUrlClick = (url) => {
+    setShowCategoryModal(false);
+    navigate(`/?url=${encodeURIComponent(url)}`);
+  };
 
   return (
     <div className="min-h-screen px-6 py-12 lg:px-16">
@@ -221,16 +244,20 @@ export default function Analytics() {
 
             {/* Category Distribution */}
             <div className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
-              <h2 className="text-lg font-semibold mb-4">Category Distribution</h2>
+              <h2 className="text-lg font-semibold mb-4">Category Distribution (Click to view URLs)</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {categoryData.map((cat) => (
-                  <div key={cat.name} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm font-medium text-gray-300">{cat.name}</p>
+                  <button
+                    key={cat.name}
+                    onClick={() => handleCategoryClick(cat.name)}
+                    className="rounded-lg border border-white/10 bg-white/5 p-4 hover:border-neon-green/50 hover:bg-neon-green/10 transition-all duration-200 cursor-pointer text-left group"
+                  >
+                    <p className="text-sm font-medium text-gray-300 group-hover:text-neon-green transition-colors">{cat.name}</p>
                     <p className="mt-2 text-2xl font-semibold text-neon-green">{cat.value}</p>
                     <p className="mt-1 text-xs text-gray-500">
                       {totalScans > 0 ? Math.round((cat.value / totalScans) * 100) : 0}% of total
                     </p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -263,19 +290,20 @@ export default function Analytics() {
 
             {/* Top Threats */}
             <div className="rounded-xl border border-white/10 bg-gray-900/50 p-6">
-              <h2 className="text-lg font-semibold mb-4">Top 10 Highest Threat Scores</h2>
+              <h2 className="text-lg font-semibold mb-4">Top 10 Highest Threat Scores (Click to view dashboard)</h2>
               <div className="space-y-3">
                 {topThreats.slice(0, 10).map((threat, index) => (
-                  <div
+                  <button
                     key={threat.id || index}
-                    className="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/5 p-4"
+                    onClick={() => handleThreatClick(threat.url)}
+                    className="w-full flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/5 p-4 hover:border-neon-red/50 hover:bg-neon-red/10 transition-all duration-200 cursor-pointer group"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-sm font-medium text-gray-400">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-sm font-medium text-gray-400 group-hover:bg-neon-red/20 transition-colors">
                         {index + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="break-words text-sm font-medium text-gray-200">
+                        <p className="break-words text-sm font-medium text-gray-200 group-hover:text-neon-red transition-colors">
                           {threat.url}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
@@ -286,11 +314,74 @@ export default function Analytics() {
                     <span className="rounded-full border border-neon-red/40 bg-neon-red/10 px-4 py-2 text-lg font-bold text-neon-red">
                       {threat.threat_score || 0}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
           </>
+        )}
+
+        {/* Category URLs Modal */}
+        {showCategoryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-gray-900 shadow-2xl flex flex-col">
+              {/* Modal Header */}
+              <div className="border-b border-white/10 bg-gray-800/50 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">URLs in Category</h3>
+                    <p className="mt-1 text-sm text-gray-400">{selectedCategory}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowCategoryModal(false)}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="overflow-y-auto flex-1 p-6">
+                <div className="space-y-2">
+                  {categoryUrls.length > 0 ? (
+                    categoryUrls.map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleUrlClick(item.url)}
+                        className="w-full text-left flex items-start gap-4 rounded-lg border border-white/10 bg-white/5 p-4 hover:border-neon-green/50 hover:bg-neon-green/10 transition-all duration-200 group"
+                      >
+                        <div className="mt-1">
+                          <div className="h-4 w-4 rounded border border-gray-500 flex items-center justify-center group-hover:border-neon-green group-hover:bg-neon-green/20">
+                            <span className="text-xs text-gray-400 group-hover:text-neon-green">→</span>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="break-all text-sm font-medium text-gray-200 group-hover:text-neon-green transition-colors">
+                            {item.url}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Threat: {item.threat_score || 0} • Risk: {item.risk_level} • Status: {item.url_status}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-center text-gray-500 py-8">No URLs found in this category</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="border-t border-white/10 bg-gray-800/30 px-6 py-4">
+                <p className="text-xs text-gray-500 text-center">
+                  Click any URL to view its dashboard analysis
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -564,64 +564,125 @@ def acknowledge_alert(alert_id: str) -> Any:
         db_manager.close()
 
 
-@app.route("/compare/<url_hash>", methods=["GET"])
-def compare_scans(url_hash: str) -> Any:
-    """Compare last two scans for a URL"""
+@app.route("/compare", methods=["GET"])
+def compare_scans() -> Any:
+    """Compare current scan with baseline (first) scan for a URL"""
     import urllib.parse
+    
+    # Get URL from query parameter
+    url = request.args.get("url")
+    if not url:
+        return jsonify({"detail": "URL parameter missing"}), 400
     
     db_manager = DatabaseManager()
     if db_manager.collection is None:
         return jsonify({"detail": "Database connection failed"}), 500
     
     try:
-        # URL is URL-encoded in the path
-        decoded_url = urllib.parse.unquote(url_hash)
-        # Get limit parameter
-        limit = request.args.get("limit", 2, type=int)
+        # URL is already in query param, no need to decode
+        decoded_url = urllib.parse.unquote(url)
         
-        # Find scans by exact URL match
+        # Find all scans for this URL, sorted by timestamp ascending (oldest first)
         scans = list(
             db_manager.collection
             .find({"url": decoded_url})
-            .sort("timestamp", -1)
-            .limit(limit)
+            .sort("timestamp", 1)
         )
         
         if len(scans) < 2:
             return jsonify({"detail": "Not enough scans to compare"}), 404
         
-        current = scans[0]
-        previous = scans[1]
+        # Baseline is the FIRST/OLDEST scan, current is the LATEST scan
+        baseline = scans[0]
+        current = scans[-1]
+        
+        # Calculate differences
+        current_emails = len(current.get("emails_found", []))
+        baseline_emails = len(baseline.get("emails_found", []))
+        new_emails = current_emails - baseline_emails
+        
+        current_crypto = len(current.get("crypto_addresses", []))
+        baseline_crypto = len(baseline.get("crypto_addresses", []))
+        new_crypto = current_crypto - baseline_crypto
+        
+        current_threat = current.get("threat_score", 0)
+        baseline_threat = baseline.get("threat_score", 0)
+        threat_delta = current_threat - baseline_threat
+        
+        current_risk = current.get("risk_level", "LOW")
+        baseline_risk = baseline.get("risk_level", "LOW")
+        
+        current_status = current.get("url_status", "UNKNOWN")
+        baseline_status = baseline.get("url_status", "UNKNOWN")
+        
+        current_category = current.get("category", "Unknown")
+        baseline_category = baseline.get("category", "Unknown")
+        
+        # Check for file analysis threats
+        baseline_files = baseline.get("file_analysis", []) or []
+        current_files = current.get("file_analysis", []) or []
+        baseline_malicious = sum(1 for f in baseline_files if f.get("analysis", {}).get("clamav_detected"))
+        current_malicious = sum(1 for f in current_files if f.get("analysis", {}).get("clamav_detected"))
+        new_malicious = current_malicious - baseline_malicious
+        
+        # Build detailed reasons for changes
+        reasons = []
+        
+        if new_emails > 0:
+            reasons.append(f"🚨 {new_emails} new email(s) discovered")
+        
+        if new_crypto > 0:
+            reasons.append(f"💰 {new_crypto} new crypto address(es) found")
+        
+        if current.get("content_changed") and not baseline.get("content_changed"):
+            reasons.append("📝 Content has changed since baseline")
+        
+        if current_risk != baseline_risk:
+            reasons.append(f"⚠️ Risk level changed from {baseline_risk} to {current_risk}")
+        
+        if current_status != baseline_status:
+            reasons.append(f"🌐 URL status changed from {baseline_status} to {current_status}")
+        
+        if current_category != baseline_category:
+            reasons.append(f"📂 Category changed from {baseline_category} to {current_category}")
+        
+        if new_malicious > 0:
+            reasons.append(f"🦠 {new_malicious} malicious file(s) detected")
+        
+        if threat_delta > 0 and not reasons:
+            reasons.append(f"📊 Threat increased by {threat_delta} points")
         
         comparison = {
             "current": {
                 "timestamp": current.get("timestamp"),
-                "threat_score": current.get("threat_score", 0),
-                "risk_level": current.get("risk_level", "LOW"),
-                "category": current.get("category", "Unknown"),
-                "url_status": current.get("url_status", "UNKNOWN"),
+                "threat_score": current_threat,
+                "risk_level": current_risk,
+                "category": current_category,
+                "url_status": current_status,
                 "content_changed": current.get("content_changed", False),
-                "emails": len(current.get("emails_found", [])),
-                "crypto": len(current.get("crypto_addresses", []))
+                "emails": current_emails,
+                "crypto": current_crypto
             },
             "previous": {
-                "timestamp": previous.get("timestamp"),
-                "threat_score": previous.get("threat_score", 0),
-                "risk_level": previous.get("risk_level", "LOW"),
-                "category": previous.get("category", "Unknown"),
-                "url_status": previous.get("url_status", "UNKNOWN"),
-                "content_changed": previous.get("content_changed", False),
-                "emails": len(previous.get("emails_found", [])),
-                "crypto": len(previous.get("crypto_addresses", []))
+                "timestamp": baseline.get("timestamp"),
+                "threat_score": baseline_threat,
+                "risk_level": baseline_risk,
+                "category": baseline_category,
+                "url_status": baseline_status,
+                "content_changed": baseline.get("content_changed", False),
+                "emails": baseline_emails,
+                "crypto": baseline_crypto
             },
             "changes": {
-                "threat_score_delta": current.get("threat_score", 0) - previous.get("threat_score", 0),
-                "risk_level_changed": current.get("risk_level") != previous.get("risk_level"),
-                "category_changed": current.get("category") != previous.get("category"),
-                "status_changed": current.get("url_status") != previous.get("url_status"),
-                "new_emails": len(current.get("emails_found", [])) - len(previous.get("emails_found", [])),
-                "new_crypto": len(current.get("crypto_addresses", [])) - len(previous.get("crypto_addresses", []))
-            }
+                "threat_score_delta": threat_delta,
+                "risk_level_changed": current_risk != baseline_risk,
+                "category_changed": current_category != baseline_category,
+                "status_changed": current_status != baseline_status,
+                "new_emails": new_emails,
+                "new_crypto": new_crypto,
+                "new_malicious_files": new_malicious
+            },
+            "reasons": reasons
         }
         
         return jsonify(comparison)
