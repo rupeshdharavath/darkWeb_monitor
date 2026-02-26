@@ -5,7 +5,7 @@ Handles storing and retrieving scraped data
 
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
-from app.config import MONGODB_URI, DATABASE_NAME, COLLECTION_NAME
+from app.core.config import settings
 from app.utils import logger, get_timestamp
 
 
@@ -19,13 +19,17 @@ class DatabaseManager:
         self.alerts = None
         self.iocs = None
         self.monitors = None
+        
+                if not settings.mongodb_uri:
+                    raise ValueError("❌ MONGODB_URI not found in environment variables (.env file)")
+        
         self.connect()
 
     def connect(self):
         """Establish connection to MongoDB Atlas"""
         try:
             self.client = MongoClient(
-                MONGODB_URI,
+                settings.mongodb_uri,
                 serverSelectionTimeoutMS=15000,  # Increased to 15 seconds
                 connectTimeoutMS=15000,
                 socketTimeoutMS=15000,
@@ -35,8 +39,8 @@ class DatabaseManager:
             # Test connection
             self.client.admin.command("ping")
 
-            self.db = self.client[DATABASE_NAME]
-            self.collection = self.db[COLLECTION_NAME]
+            self.db = self.client[settings.database_name]
+            self.collection = self.db[settings.collection_name]
             self.alerts = self.db["alerts"]  # Alert collection for threat notifications
             self.iocs = self.db["iocs"]      # IOC collection for indicators tracking
             self.monitors = self.db["monitors"]  # Monitors collection for active monitoring jobs

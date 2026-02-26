@@ -6,7 +6,7 @@ Handles fetching content from dark web sites
 import time
 import random
 import requests
-from app.config import REQUEST_TIMEOUT, DELAY_BETWEEN_REQUESTS
+from app.core.config import settings
 from app.utils import logger
 
 
@@ -46,7 +46,7 @@ def fetch_url(url):
         response = requests.get(
             url,
             proxies=proxies,
-            timeout=REQUEST_TIMEOUT,
+                timeout=settings.request_timeout,
             verify=False  # Ignore SSL cert warnings for darkweb
         )
         response_time = time.time() - start_time
@@ -171,9 +171,9 @@ def scrape_multiple_urls(session, url_list):
         results[url] = (content, status_info)
 
         # Randomized delay to reduce detection
-        sleep_time = random.uniform(
-            DELAY_BETWEEN_REQUESTS,
-            DELAY_BETWEEN_REQUESTS + 3
+            sleep_time = random.uniform(
+                settings.delay_between_requests,
+                settings.delay_between_requests + 3
         )
         time.sleep(sleep_time)
 

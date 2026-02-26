@@ -27,7 +27,7 @@ def create_tor_session():
     # Retry strategy
     retry_strategy = Retry(
         total=3,
-        backoff_factor=1,
+from app.core.config import settings
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["GET"],
         respect_retry_after_header=False
@@ -42,8 +42,8 @@ def create_tor_session():
     return session
 
 
-def test_tor_connection(session):
-    """
+    session.proxies.update(settings.tor_proxy)
+    session.headers.update(settings.headers)
     Test if Tor connection is working
     """
 
