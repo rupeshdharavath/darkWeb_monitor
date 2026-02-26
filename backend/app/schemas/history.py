@@ -65,7 +65,7 @@ class HistoryDetailResponse(BaseModel):
     title: str
     textPreview: str
     keywords: List[str]
-    links: List[Dict[str, str]]
+    links: List[Dict[str, Optional[str]]]
     fileLinks: List[Dict[str, Any]]
     fileAnalysis: List[Dict[str, Any]]
     clamav: ClamavInfo

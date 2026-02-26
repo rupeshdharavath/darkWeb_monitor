@@ -301,7 +301,11 @@ class ScanService:
             )
 
             if len(scans) < 2:
-                raise FileNotFoundError("Not enough scans to compare")
+                raise FileNotFoundError(
+                    f"Not enough scan data to compare. URL has been scanned {len(scans)} time(s). "
+                    "At least 2 scans are required for comparison. "
+                    "Rescan the URL to generate a second baseline for comparison."
+                )
 
             # Baseline is the FIRST/OLDEST scan, current is the LATEST scan
             baseline = scans[0]
@@ -372,6 +376,7 @@ class ScanService:
                 reasons.append(f"📊 Threat increased by {threat_delta} points")
 
             comparison = {
+                "scan_count": len(scans),
                 "current": {
                     "timestamp": current.get("timestamp"),
                     "threat_score": current_threat,
