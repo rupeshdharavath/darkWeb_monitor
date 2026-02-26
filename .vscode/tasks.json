@@ -6,7 +6,7 @@
 			"type": "shell",
 			"command": "${workspaceFolder}/.venv/bin/python",
 			"args": [
-				"backend/server.py"
+				"backend/main.py"
 			],
 			"isBackground": true,
 			"problemMatcher": []
