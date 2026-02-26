@@ -102,12 +102,12 @@ export default function Analytics() {
   };
 
   const handleThreatClick = (url) => {
-    navigate(`/?url=${encodeURIComponent(url)}`);
+    navigate(`/?scanUrl=${encodeURIComponent(url)}`);
   };
 
   const handleUrlClick = (url) => {
     setShowCategoryModal(false);
-    navigate(`/?url=${encodeURIComponent(url)}`);
+    navigate(`/?scanUrl=${encodeURIComponent(url)}`);
   };
 
   return (

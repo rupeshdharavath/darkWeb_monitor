@@ -74,7 +74,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const queryUrl = searchParams.get("url");
+  const queryUrl = searchParams.get("scanUrl");
   const { alertData = null } = location.state || {};
   const { showToast, ToastContainer } = useToast();
   const [url, setUrl] = useState("");
@@ -493,8 +493,8 @@ export default function Dashboard() {
                       <button
                         onClick={() => {
                           setShowAlerts(false);
-                          navigate("/?url=" + encodeURIComponent(alert.url), { 
-                            state: { alertData: alert } 
+                          navigate("/?scanUrl=" + encodeURIComponent(alert.url), {
+                            state: { alertData: alert }
                           });
                         }}
                         className="flex-shrink-0 rounded-lg border border-neon-blue/40 bg-neon-blue/10 px-3 py-2 text-xs font-medium text-neon-blue hover:bg-neon-blue/20 transition-colors"

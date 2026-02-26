@@ -19,10 +19,10 @@ class DatabaseManager:
         self.alerts = None
         self.iocs = None
         self.monitors = None
-        
-                if not settings.mongodb_uri:
-                    raise ValueError("❌ MONGODB_URI not found in environment variables (.env file)")
-        
+
+        if not settings.mongodb_uri:
+            raise ValueError("❌ MONGODB_URI not found in environment variables (.env file)")
+
         self.connect()
 
     def connect(self):

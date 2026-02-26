@@ -152,7 +152,7 @@ export default function Monitors() {
 
   const handleViewInDashboard = (url) => {
     // Navigate to dashboard with the URL
-    navigate(`/?url=${encodeURIComponent(url)}`);
+    navigate(`/?scanUrl=${encodeURIComponent(url)}`);
   };
 
   const getNextScanTime = (lastScan, interval) => {

@@ -39,8 +39,8 @@ export default function Alerts() {
 
   const handleViewInDashboard = (url, alert) => {
     // Navigate to dashboard with the URL and alert context
-    navigate("/?url=" + encodeURIComponent(url), { 
-      state: { alertData: alert } 
+    navigate("/?scanUrl=" + encodeURIComponent(url), {
+      state: { alertData: alert }
     });
   };
 

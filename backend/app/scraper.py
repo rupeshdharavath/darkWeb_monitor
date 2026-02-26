@@ -171,9 +171,9 @@ def scrape_multiple_urls(session, url_list):
         results[url] = (content, status_info)
 
         # Randomized delay to reduce detection
-            sleep_time = random.uniform(
-                settings.delay_between_requests,
-                settings.delay_between_requests + 3
+        sleep_time = random.uniform(
+            settings.delay_between_requests,
+            settings.delay_between_requests + 3
         )
         time.sleep(sleep_time)
 

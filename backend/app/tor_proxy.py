@@ -1,40 +1,35 @@
 """
-Tor Proxy Session Setup
-Handles connection to Tor network for anonymous scraping
+Tor proxy session setup.
 """
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from app.config import TOR_PROXY, REQUEST_TIMEOUT, USER_AGENT
+
+from app.core.config import settings
 from app.utils import logger
 
 
 TOR_TEST_URL = "https://check.torproject.org"
 
 
-def create_tor_session():
-    """
-    Create a requests session configured to use Tor proxy
-    """
-
+def create_tor_session() -> requests.Session:
+    """Create a requests session configured to use Tor proxy."""
     session = requests.Session()
 
-    # Apply Tor proxy
-    session.proxies.update(TOR_PROXY)
-    session.headers.update({"User-Agent": USER_AGENT})
+    # Apply Tor proxy and headers
+    session.proxies.update(settings.tor_proxy)
+    session.headers.update(settings.headers)
 
-    # Retry strategy
     retry_strategy = Retry(
         total=3,
-from app.core.config import settings
+        backoff_factor=1,
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["GET"],
-        respect_retry_after_header=False
+        respect_retry_after_header=False,
     )
 
     adapter = HTTPAdapter(max_retries=retry_strategy)
-
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
@@ -42,22 +37,18 @@ from app.core.config import settings
     return session
 
 
-    session.proxies.update(settings.tor_proxy)
-    session.headers.update(settings.headers)
-    Test if Tor connection is working
-    """
-
+def test_tor_connection(session: requests.Session) -> bool:
+    """Test if Tor connection is working."""
     try:
-        response = session.get(TOR_TEST_URL, timeout=REQUEST_TIMEOUT)
+        response = session.get(TOR_TEST_URL, timeout=settings.request_timeout)
         response.raise_for_status()
 
         if "Congratulations" in response.text:
             logger.info("Tor connection verified successfully")
             return True
-        else:
-            logger.warning("Tor connection may not be working properly")
-            return False
 
-    except Exception as e:
-        logger.error(f"Error testing Tor connection: {e}")
+        logger.warning("Tor connection may not be working properly")
+        return False
+    except Exception as exc:
+        logger.error(f"Error testing Tor connection: {exc}")
         return False
